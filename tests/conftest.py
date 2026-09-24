@@ -49,6 +49,10 @@ class FakeGolfAPI:
         )
         return parse_search(self.search_payload)[:limit]
 
+    def return_no_results(self) -> None:
+        """Make every later search come back empty."""
+        self.search_payload = {"courses": [], "total": 0}
+
     async def get_course(self, course_id: str) -> CourseDetail:
         self.calls.append(("get_course", {"course_id": course_id}))
         if course_id != self.course.id:
@@ -106,8 +110,14 @@ def build_caddie_data(
 
 
 @pytest.fixture
-def make_caddie_data(blue_ash_course: CourseDetail, publisher: RecordingPublisher):
-    """Factory fixture: make_caddie_data(holes_played=18, starting_hole=1)."""
+def make_caddie_data(
+    blue_ash_course: CourseDetail,
+    publisher: RecordingPublisher,
+    fake_golf_api: FakeGolfAPI,
+):
+    """Factory fixture: make_caddie_data(holes_played=18, starting_hole=1).
+    Uses the `fake_golf_api` fixture, so tests can assert on its calls.
+    """
 
     def _make(*, holes_played: int = 18, starting_hole: int = 1) -> CaddieData:
         return build_caddie_data(
@@ -115,6 +125,7 @@ def make_caddie_data(blue_ash_course: CourseDetail, publisher: RecordingPublishe
             publisher,
             holes_played=holes_played,
             starting_hole=starting_hole,
+            golf_api=fake_golf_api,
         )
 
     return _make

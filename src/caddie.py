@@ -1,8 +1,10 @@
 """The golf caddie agents and the session state they share.
 
-`CaddieData` is the session userdata. `HoleByHoleAgent` walks the golfer
-through their round one hole at a time and records each hole on the scorecard.
-Every change is pushed to the frontend through `CaddieData.push()`.
+`CaddieData` is the session userdata. `RoundSetupAgent` finds the course and
+collects the tee box, the number of holes, and the starting hole, then hands
+off to `HoleByHoleAgent`, which walks the golfer through their round one hole
+at a time and records each hole on the scorecard. Every change is pushed to
+the frontend through `CaddieData.push()`.
 """
 
 import logging
@@ -20,7 +22,14 @@ from livekit.agents import (
     inference,
 )
 
-from golf_api import CourseDetail, CourseSummary
+from golf_api import (
+    AmbiguousTeeError,
+    CourseDetail,
+    CourseSummary,
+    GolfAPIError,
+    Tee,
+    find_tee,
+)
 from scorecard import (
     Round,
     RoundStatus,
@@ -32,6 +41,8 @@ from scorecard import (
 logger = logging.getLogger("caddie")
 
 AGENT_LLM_MODEL = "google/gemma-4-31b-it"
+
+MAX_SEARCH_RESULTS = 5
 
 ShotResultArg = Literal["hit", "left", "right", "short", "long"]
 
@@ -302,4 +313,273 @@ class HoleByHoleAgent(Agent):
         return (
             f"{_scorecard_text(round_)} "
             "Congratulate the golfer and tell them the scorecard is ready."
+        )
+
+
+def _search_result_line(number: int, course: CourseSummary) -> str:
+    parts = [course.name]
+    parts += [part for part in (course.city, course.state) if part]
+    if course.par is not None:
+        parts.append(f"par {course.par}")
+    return f"{number}. " + ", ".join(parts)
+
+
+def _unique_tees(tees: list[Tee]) -> list[Tee]:
+    """One tee per name, in course order (a name can appear once per gender)."""
+    seen: dict[str, Tee] = {}
+    for tee in tees:
+        seen.setdefault(tee.name.lower(), tee)
+    return list(seen.values())
+
+
+def _tee_names(tees: list[Tee]) -> str:
+    return ", ".join(tee.name for tee in _unique_tees(tees))
+
+
+def _tee_options(course: CourseDetail) -> str:
+    if not course.tees:
+        return "This course has no tee data, so any tee name the golfer gives is fine."
+    options = ", ".join(
+        f"{tee.name} ({tee.yardage} yards)" if tee.yardage is not None else tee.name
+        for tee in _unique_tees(course.tees)
+    )
+    return f"Tee options: {options}."
+
+
+def _spoken_tee_name(name: str) -> str:
+    """The tee name without a trailing "tees" or "tee": "white tees" -> "white"."""
+    name = name.strip()
+    for suffix in (" tees", " tee"):
+        if name.lower().endswith(suffix):
+            return name[: -len(suffix)].strip()
+    return name
+
+
+def _match_tee(course: CourseDetail, tee_name: str, gender: str | None) -> Tee:
+    """Find the golfer's tee on the course, raising ToolError with a message
+    the LLM can act on when the name is unknown or shared by men and women.
+    """
+    try:
+        return find_tee(course.tees, tee_name, gender)
+    except AmbiguousTeeError as e:
+        spoken = _spoken_tee_name(tee_name)
+        name = next(
+            (tee.name for tee in course.tees if tee.name.lower() == spoken.lower()),
+            spoken,
+        )
+        raise ToolError(
+            f"The {name} tees are listed for both men and women. Ask the golfer "
+            f"whether they played the men's or women's {name} tees."
+        ) from e
+    except LookupError as e:
+        if gender is not None:
+            # The name exists but not for that gender. With only one tee of
+            # that name, the gender doesn't change which tee it is.
+            try:
+                return find_tee(course.tees, tee_name)
+            except LookupError:
+                pass
+        raise ToolError(
+            f"This course has no {_spoken_tee_name(tee_name)} tees. The tee "
+            f"options are: {_tee_names(course.tees)}. Ask the golfer which one "
+            "they played."
+        ) from e
+
+
+class RoundSetupAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(
+            llm=inference.LLM(model=AGENT_LLM_MODEL),
+            instructions=textwrap.dedent(
+                """\
+                You are a friendly, upbeat golf caddie helping a golfer fill out their scorecard after their round. First you set up the scorecard.
+
+                {output_rules}
+                # Setting up the scorecard
+
+                You need four things: the course, the tees they played, whether they played nine or eighteen holes, and the hole they started on.
+
+                - Ask for one thing at a time. If the golfer gives several answers at once, use all of them and only ask for what is still missing.
+                - As soon as the golfer names a course, search for it.
+                - If the search finds one course, ask the golfer to confirm it, saying its name and city. If it finds several, read back up to three by name and city and ask which one they played. Do not select a course until the golfer confirms it.
+                - If the search finds nothing, tell the golfer you couldn't find it and ask for the city or state, or a different spelling, then search again.
+                - Never make up a course or suggest one the search did not return.
+                - Once the golfer confirms the course, select it right away, then ask which tees they played, naming the tee options.
+                - Never assume the starting hole. Ask for it unless the golfer said it. "Started on the first tee" or "started on one" means hole one.
+                - Never assume whether the golfer played the men's or women's tees. If a tee name is listed for both, ask which one they played.
+                - As soon as the course is selected and you know the tees, the number of holes, and the starting hole, start the round right away, before saying anything. Don't ask about any hole's score until the round is started.
+                """
+            ).format(output_rules=_VOICE_OUTPUT_RULES),
+        )
+
+    async def on_enter(self) -> None:
+        course = self.session.userdata.course
+        if course is None:
+            self.session.generate_reply(
+                instructions=(
+                    "Greet the golfer warmly as their caddie, then ask which golf "
+                    "course they played today."
+                )
+            )
+            return
+
+        # The course was selected before this agent took over, so its search
+        # and confirmation aren't in the chat history. Tell the LLM.
+        await self.update_instructions(
+            f"{self.instructions}\n# Current setup\n\n"
+            f"The golfer's course is already confirmed and selected: {course.name}. "
+            f"{_tee_options(course)}\n"
+        )
+        self.session.generate_reply(
+            instructions=(
+                f"Greet the golfer warmly as their caddie, mention {course.name}, "
+                "and ask which tees they played."
+            )
+        )
+
+    @function_tool
+    async def search_courses(
+        self,
+        context: RunContext[CaddieData],
+        course_name: str,
+        state: str | None = None,
+    ) -> str:
+        """Search the course directory for the course the golfer played.
+
+        Args:
+            course_name: The course name as the golfer said it, for example "Blue Ash".
+            state: Two-letter US state code, for example "OH". Pass it only if the golfer mentioned a state, or a city whose state is clear; otherwise leave it out.
+        """
+        if state is not None:
+            state = state.strip().upper()
+            if len(state) != 2 or not state.isalpha():
+                state = None
+        try:
+            results = await context.userdata.golf_api.search_courses(
+                course_name, state=state, limit=MAX_SEARCH_RESULTS
+            )
+        except GolfAPIError as e:
+            logger.warning("course search failed: %s", e)
+            raise ToolError(
+                "The course directory is unavailable right now. Tell the golfer "
+                "and ask them to try again in a moment."
+            ) from e
+
+        results = results[:MAX_SEARCH_RESULTS]
+        context.userdata.search_results = results
+        logger.info(
+            "course search %r (%s): %d results", course_name, state, len(results)
+        )
+
+        if not results:
+            where = f" in {state}" if state else ""
+            return (
+                f"No courses matched {course_name!r}{where}; ask for the city or "
+                "state or another spelling."
+            )
+
+        lines = [_search_result_line(i, course) for i, course in enumerate(results, 1)]
+        if len(results) == 1:
+            lines.append(
+                "Ask the golfer to confirm this is their course before selecting it."
+            )
+        else:
+            lines.append(
+                "Read back up to three of these by name and city and ask which one "
+                "the golfer played."
+            )
+        return "\n".join(lines)
+
+    @function_tool
+    async def select_course(
+        self, context: RunContext[CaddieData], result_number: int
+    ) -> str:
+        """Select the golfer's course. Call this only after the golfer confirms which search result is their course.
+
+        Args:
+            result_number: The 1-based number of the course in the latest search results.
+        """
+        results = context.userdata.search_results
+        if not results:
+            raise ToolError("Search for the course before selecting it.")
+        if not (1 <= result_number <= len(results)):
+            raise ToolError(
+                f"There is no result number {result_number}. The latest search has "
+                f"results one through {len(results)}."
+            )
+
+        try:
+            course = await context.userdata.golf_api.get_course(
+                results[result_number - 1].id
+            )
+        except GolfAPIError as e:
+            logger.warning("course lookup failed: %s", e)
+            raise ToolError(
+                "The course directory is unavailable right now. Tell the golfer "
+                "and ask them to try again in a moment."
+            ) from e
+
+        context.userdata.course = course
+        context.userdata.status = "setup"
+        await context.userdata.push()
+        logger.info("selected course %s", course.name)
+        return (
+            f"Selected {course.name}. {_tee_options(course)} "
+            "Ask the golfer which tees they played."
+        )
+
+    @function_tool
+    async def start_round(
+        self,
+        context: RunContext[CaddieData],
+        tee_name: str,
+        holes_played: int,
+        starting_hole: int,
+        tee_gender: Literal["male", "female"] | None = None,
+    ) -> tuple[Agent, str]:
+        """Set up the scorecard and start going through the round. Call this once the course is selected and you know the tees, the number of holes, and the starting hole.
+
+        Args:
+            tee_name: The name of the tees the golfer played, for example "Gold".
+            holes_played: 9 or 18.
+            starting_hole: The hole the golfer started on, for example 1 or 10.
+            tee_gender: "male" or "female". Only pass this when the golfer said they played the men's or women's tees; never guess.
+        """
+        course = context.userdata.course
+        if course is None:
+            raise ToolError(
+                "No course is selected. Confirm the course with the golfer first."
+            )
+
+        if course.tees:
+            tee: Tee | None = _match_tee(course, tee_name, tee_gender)
+            name = tee.name
+        else:
+            tee = None
+            name = _spoken_tee_name(tee_name)
+
+        try:
+            round_ = Round.create(course, name, tee, holes_played, starting_hole)
+        except ScorecardError as e:
+            raise ToolError(str(e)) from e
+
+        context.userdata.round = round_
+        context.userdata.status = "in_progress"
+        await context.userdata.push()
+        logger.info(
+            "round set up: %s holes at %s from %s, starting on %s",
+            holes_played,
+            course.name,
+            name,
+            starting_hole,
+        )
+        # The hole-by-hole agent starts with a fresh chat history; the round
+        # context it needs is in its instructions. It asks about the first hole
+        # itself, so this agent's last reply only acknowledges the setup.
+        return (
+            HoleByHoleAgent(round_),
+            f"Round set up: {holes_played} holes at {course.name} from the {name} "
+            f"tees, starting on hole {starting_hole}. Acknowledge it in a few words, "
+            f'for example "Got it, the {name} tees." Don\'t ask about any hole; '
+            "that comes next.",
         )
