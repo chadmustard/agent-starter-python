@@ -11,6 +11,10 @@ from golf_api import CourseDetail, Tee
 
 ShotResult = Literal["hit", "left", "right", "short", "long"]
 SHOT_RESULTS: tuple[str, ...] = ("hit", "left", "right", "short", "long")
+# Passed for a fairway or green result the golfer doesn't remember. It is
+# stored as None, so an unknown detail on a recorded hole is null in the
+# payload, while leaving the result out entirely is still an error.
+UNKNOWN = "unknown"
 MISS_DIRECTIONS: tuple[str, ...] = ("left", "right", "short", "long")
 RoundStatus = Literal["setup", "in_progress", "complete"]
 
@@ -50,9 +54,9 @@ class HoleSpec:
 @dataclass
 class HoleScore:
     strokes: int
-    putts: int
-    fairway: ShotResult | None  # always None on par 3s
-    green: ShotResult
+    putts: int | None  # None when the golfer doesn't remember
+    fairway: ShotResult | None  # None on par 3s, or when not remembered
+    green: ShotResult | None  # None when the golfer doesn't remember
 
 
 @dataclass
@@ -121,14 +125,19 @@ class Round:
         self,
         number: int,
         strokes: int,
-        putts: int,
-        green: str,
+        putts: int | None,
+        green: str | None,
         fairway: str | None = None,
         par: int | None = None,
     ) -> HoleScore:
         """Upsert (re-recording a hole replaces it). Every argument is
         validated before anything changes, so a call that raises leaves the
         hole's par and score untouched.
+
+        Strokes are always required. `putts=None` means the golfer doesn't
+        remember their putts; a green or fairway of "unknown" means they
+        don't remember that result. Both are stored as None. A missing
+        green, or a missing fairway on a par four or five, is an error.
         """
         spec = self.hole(number)
 
@@ -141,28 +150,30 @@ class Round:
 
         if not (1 <= strokes <= 20):
             raise ScorecardError("Strokes must be between one and twenty.")
-        if not (0 <= putts <= 10):
-            raise ScorecardError("Putts must be between zero and ten.")
-        if putts > strokes - 1:
-            raise ScorecardError("Putts can't be that high for that many strokes.")
+        if putts is not None:
+            if not (0 <= putts <= 10):
+                raise ScorecardError("Putts must be between zero and ten.")
+            if putts > strokes - 1:
+                raise ScorecardError("Putts can't be that high for that many strokes.")
 
-        if green not in SHOT_RESULTS:
+        if green not in (*SHOT_RESULTS, UNKNOWN):
             raise ScorecardError(
                 "The green result must be hit, left, right, short, or long."
             )
+        green_result = None if green == UNKNOWN else green
 
         if effective_par == 3:
             fairway_result = None
         else:
-            if fairway not in SHOT_RESULTS:
+            if fairway not in (*SHOT_RESULTS, UNKNOWN):
                 raise ScorecardError(
                     "I need a fairway result for that hole: hit, left, right, "
                     "short, or long."
                 )
-            fairway_result = fairway
+            fairway_result = None if fairway == UNKNOWN else fairway
 
         score = HoleScore(
-            strokes=strokes, putts=putts, fairway=fairway_result, green=green
+            strokes=strokes, putts=putts, fairway=fairway_result, green=green_result
         )
         spec.par = effective_par
         self.scores[number] = score
@@ -194,7 +205,7 @@ class Round:
         return {
             "strokes": sum(score.strokes for _, score in recorded),
             "par": sum(spec.par for spec, _ in recorded),
-            "putts": sum(score.putts for _, score in recorded),
+            "putts": sum(score.putts or 0 for _, score in recorded),
         }
 
     def summary(self) -> dict:
@@ -209,6 +220,7 @@ class Round:
         total_putts = 0
         fairways_possible = 0
         fairways_hit = 0
+        greens_possible = 0
         greens_hit = 0
         fairway_misses = dict.fromkeys(MISS_DIRECTIONS, 0)
         green_misses = dict.fromkeys(MISS_DIRECTIONS, 0)
@@ -216,19 +228,24 @@ class Round:
         for spec, score in recorded:
             total_strokes += score.strokes
             total_par += spec.par
-            total_putts += score.putts
+            # Unknown details (None) count toward neither the totals nor the
+            # denominators, so the percentages cover only what's known.
+            if score.putts is not None:
+                total_putts += score.putts
 
-            if spec.par >= 4:
+            if spec.par >= 4 and score.fairway is not None:
                 fairways_possible += 1
                 if score.fairway == "hit":
                     fairways_hit += 1
                 elif score.fairway in MISS_DIRECTIONS:
                     fairway_misses[score.fairway] += 1
 
-            if score.green == "hit":
-                greens_hit += 1
-            elif score.green in MISS_DIRECTIONS:
-                green_misses[score.green] += 1
+            if score.green is not None:
+                greens_possible += 1
+                if score.green == "hit":
+                    greens_hit += 1
+                elif score.green in MISS_DIRECTIONS:
+                    green_misses[score.green] += 1
 
         return {
             "holes_completed": len(recorded),
@@ -239,7 +256,7 @@ class Round:
             "fairways_hit": fairways_hit,
             "fairways_possible": fairways_possible,
             "greens_hit": greens_hit,
-            "greens_possible": len(recorded),
+            "greens_possible": greens_possible,
             "fairway_misses": fairway_misses,
             "green_misses": green_misses,
             "front_nine": self._nine(1, 9),

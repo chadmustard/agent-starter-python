@@ -29,7 +29,7 @@ This project has been adapted into a post-round golf caddie. The golfer tells th
 
 OpenGolfAPI's course data is licensed [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/); any use of it must carry the attribution "© OpenStreetMap contributors (ODbL 1.0) via OpenGolfAPI".
 
-**Frontend contract:** after every change, the agent publishes the full scorecard as JSON on text-stream topic `golf.scorecard`, and answers the RPC method `golf.get_scorecard` with the latest payload for a client that joins late (`src/publisher.py`). See `build_payload` in `src/scorecard.py` for the exact payload shape.
+**Frontend contract:** after every change, the agent publishes the full scorecard as JSON on text-stream topic `golf.scorecard`, and answers the RPC method `golf.get_scorecard` with the latest payload for a client that joins late (`src/publisher.py`). See `build_payload` in `src/scorecard.py` for the exact payload shape. On a recorded hole (`strokes` non-null), a null `putts`, `green`, or `fairway` means the golfer didn't remember it; summary totals and the fairways/greens possible counts cover only the known values.
 
 ## Using coding agents
 

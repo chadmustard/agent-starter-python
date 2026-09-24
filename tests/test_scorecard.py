@@ -284,6 +284,82 @@ def test_record_hole_invalid_green_errors(course, gold_tee):
         round_.record_hole(1, strokes=5, putts=2, green="somewhere", fairway="hit")
 
 
+# --- record_hole with details the golfer doesn't remember --------------------
+
+
+def test_record_hole_unknown_putts(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    score = round_.record_hole(1, strokes=5, putts=None, green="left", fairway="hit")
+
+    assert score == HoleScore(strokes=5, putts=None, fairway="hit", green="left")
+
+
+def test_record_hole_unknown_putts_skips_the_putts_check(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    # A hole in one with unknown putts is fine; a known putt count isn't.
+    score = round_.record_hole(2, strokes=1, putts=None, green="hit")
+    assert score.putts is None
+    with pytest.raises(ScorecardError):
+        round_.record_hole(2, strokes=1, putts=1, green="hit")
+
+
+def test_record_hole_unknown_green_and_fairway_store_none(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    score = round_.record_hole(
+        1, strokes=5, putts=2, green="unknown", fairway="unknown"
+    )
+
+    assert score == HoleScore(strokes=5, putts=2, fairway=None, green=None)
+
+
+def test_record_hole_unknown_fairway_on_par_3_is_none(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    score = round_.record_hole(2, strokes=3, putts=2, green="hit", fairway="unknown")
+    assert score.fairway is None
+
+
+def test_record_hole_missing_fairway_is_not_unknown(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    with pytest.raises(ScorecardError):
+        round_.record_hole(1, strokes=5, putts=2, green="hit", fairway=None)
+    assert 1 not in round_.scores
+
+
+def test_record_hole_missing_green_is_not_unknown(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    with pytest.raises(ScorecardError):
+        round_.record_hole(1, strokes=5, putts=2, green=None, fairway="hit")
+    assert 1 not in round_.scores
+
+
+def test_summary_counts_only_known_details(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    # hole 1: par 4, everything known
+    round_.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    # hole 2: par 3, putts and green unknown
+    round_.record_hole(2, strokes=4, putts=None, green="unknown")
+    # hole 3: par 4, fairway unknown, green hit
+    round_.record_hole(3, strokes=4, putts=1, green="hit", fairway="unknown")
+    # hole 10: par 5, green unknown, fairway missed left
+    round_.record_hole(10, strokes=6, putts=None, green="unknown", fairway="left")
+
+    summary = round_.summary()
+
+    assert summary["holes_completed"] == 4
+    assert summary["total_strokes"] == 19
+    assert summary["total_par"] == 16
+    assert summary["score_to_par"] == 3
+    assert summary["total_putts"] == 3
+    assert summary["fairways_possible"] == 2
+    assert summary["fairways_hit"] == 1
+    assert summary["fairway_misses"] == {"left": 1, "right": 0, "short": 0, "long": 0}
+    assert summary["greens_possible"] == 2
+    assert summary["greens_hit"] == 1
+    assert summary["green_misses"] == {"left": 0, "right": 0, "short": 1, "long": 0}
+    assert summary["front_nine"] == {"strokes": 13, "par": 11, "putts": 3}
+    assert summary["back_nine"] == {"strokes": 6, "par": 5, "putts": 0}
+
+
 # --- next_hole / missing_holes / is_complete -----------------------------------
 
 
@@ -538,6 +614,22 @@ def test_build_payload_in_progress(course, gold_tee):
     assert payload["holes_played"] == 9
     assert payload["starting_hole"] == 1
     assert payload["summary"] is not None
+    assert_payload_keys(payload)
+    json.dumps(payload)
+
+
+def test_build_payload_unknown_details_are_null_on_a_recorded_hole(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    round_.record_hole(1, strokes=5, putts=None, green="unknown", fairway="unknown")
+
+    payload = build_payload("in_progress", course, round_)
+
+    hole = payload["holes"][0]
+    assert hole["strokes"] == 5
+    assert hole["score_to_par"] == 1
+    assert hole["putts"] is None
+    assert hole["green"] is None
+    assert hole["fairway"] is None
     assert_payload_keys(payload)
     json.dumps(payload)
 

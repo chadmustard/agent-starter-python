@@ -58,7 +58,7 @@ AGENT_LLM_MODEL = "google/gemma-4-31b-it"
 
 MAX_SEARCH_RESULTS = 5
 
-ShotResultArg = Literal["hit", "left", "right", "short", "long"]
+ShotResultArg = Literal["hit", "left", "right", "short", "long", "unknown"]
 
 _VOICE_OUTPUT_RULES = textwrap.dedent(
     """\
@@ -169,12 +169,15 @@ def record_hole_result(
     hole_number: int,
     *,
     strokes: int,
-    putts: int,
+    putts: int | None,
     green: str,
     fairway: str | None = None,
     par: int | None = None,
 ) -> str:
     """Record one hole on the round and return the text the LLM sees.
+
+    `putts=None` and a green or fairway of "unknown" record a detail the
+    golfer doesn't remember (see Round.record_hole).
 
     A `par` equal to the hole's known par is treated as not passed. A `par`
     that differs from a known par is applied (the golfer corrected it) and
@@ -196,9 +199,10 @@ def record_hole_result(
     )
     spec = round_.hole(hole_number)
 
+    putts_text = "putts unknown" if score.putts is None else f"{score.putts} putts"
     text = (
         f"Recorded hole {hole_number}: {score_name(score.strokes, spec.par)} "
-        f"({score.strokes}), {score.putts} putts."
+        f"({score.strokes}), {putts_text}."
     )
     if par is not None and known_par is not None:
         text = f"Par for hole {hole_number} changed from {known_par} to {par}. {text}"
@@ -250,6 +254,7 @@ class HoleByHoleAgent(Agent):
                 - On par fours and par fives you also need the fairway result: hit, or missed left, right, short, or long. Never ask about the fairway on a par three.
                 - Convert golf terms using the hole's par: birdie is par minus one, bogey is par plus one, double bogey is par plus two, and "made par" means strokes equal to par. "Two putted" means two putts, "one putt" means one putt. "Hit the green" or "green in regulation" means the green result is hit.
                 - If the golfer leaves out any detail, ask for just the missing details before you record the hole. Never guess or fill in a default.
+                - If the golfer says they don't remember a detail, record it as unknown right away instead of guessing or pressing them for it: pass null for putts, or "unknown" for the fairway or green.
                 - As soon as you have every detail for a hole, record it right away, before saying anything.
                 - If the golfer corrects a hole you already recorded, record that hole again with all of its details, keeping the details they did not change.
                 - After recording, briefly acknowledge the score in a few words, for example "Bogey on one, got it," then ask about exactly the hole the recording result says is next, naming its number and par. That is the first hole still missing from the scorecard, so trust it even if you haven't discussed the holes before it. Do not read back every stat.
@@ -278,7 +283,7 @@ class HoleByHoleAgent(Agent):
         context: RunContext[CaddieData],
         hole_number: int,
         strokes: int,
-        putts: int,
+        putts: int | None,
         green: ShotResultArg,
         fairway: ShotResultArg | None = None,
         par: int | None = None,
@@ -288,9 +293,9 @@ class HoleByHoleAgent(Agent):
         Args:
             hole_number: The hole's number on the course, for example 1 for the first hole.
             strokes: Total strokes on the hole, including putts. Convert golf terms using the hole's par, for example a bogey on a par four is 5.
-            putts: Number of putts on the hole.
-            green: "hit" if the approach finished on the green in regulation, otherwise the side the golfer missed on: "left", "right", "short", or "long".
-            fairway: Tee shot result on par fours and par fives: "hit", "left", "right", "short", or "long". Leave this out on par threes.
+            putts: Number of putts on the hole. Pass null only when the golfer says they don't remember their putts.
+            green: "hit" if the approach finished on the green in regulation, otherwise the side the golfer missed on: "left", "right", "short", or "long". "unknown" only when the golfer says they don't remember; never as a default.
+            fairway: Tee shot result on par fours and par fives: "hit", "left", "right", "short", or "long". "unknown" only when the golfer says they don't remember; never as a default. Leave this out on par threes.
             par: The hole's par. Only pass this when the golfer states the par themselves or the course has no par for this hole; otherwise leave it out.
         """
         round_ = _require_round(context)

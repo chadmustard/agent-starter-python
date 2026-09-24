@@ -8,7 +8,8 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from livekit.agents import AgentSession, inference, llm
+from livekit.agents import AgentSession, ToolError, inference, llm
+from livekit.agents.llm.utils import build_legacy_openai_schema
 
 from caddie import CaddieData, HoleByHoleAgent, record_hole_result
 from scorecard import ScorecardError
@@ -68,6 +69,29 @@ def test_record_result_next_hole_and_completion(make_caddie_data) -> None:
     )
 
 
+def test_record_result_with_unknown_putts(make_caddie_data) -> None:
+    data = make_caddie_data()
+    text = record_hole_result(
+        data.round, 1, strokes=5, putts=None, green="left", fairway="hit"
+    )
+    assert text.startswith("Recorded hole 1: bogey (5), putts unknown.")
+    assert data.round.scores[1].putts is None
+
+
+def test_record_hole_schema_allows_unknown_details(make_caddie_data) -> None:
+    tool = HoleByHoleAgent(make_caddie_data().round).record_hole
+    params = build_legacy_openai_schema(tool, internally_tagged=True)["parameters"]
+    props = params["properties"]
+
+    # putts has no default: the LLM must pass a number or an explicit null.
+    assert "putts" in params["required"]
+    assert {"type": "null"} in props["putts"]["anyOf"]
+    assert "default" not in props["putts"]
+    assert "unknown" in props["green"]["enum"]
+    fairway_enum = next(t for t in props["fairway"]["anyOf"] if "enum" in t)["enum"]
+    assert "unknown" in fairway_enum
+
+
 # --- get_scorecard (no LLM) ---------------------------------------------------
 
 
@@ -100,6 +124,34 @@ async def test_scorecard_text_leaves_out_a_nine_with_nothing_recorded(
 
     assert "Front nine: 5 strokes, par 4, 2 putts." in text
     assert "Back nine" not in text
+
+
+@pytest.mark.asyncio
+async def test_record_hole_tool_records_unknown_details(
+    make_caddie_data, publisher
+) -> None:
+    data = make_caddie_data()
+    agent = HoleByHoleAgent(data.round)
+
+    await agent.record_hole(_context(data), 1, 5, None, "unknown", fairway="unknown")
+
+    hole = publisher.last["holes"][0]
+    assert (hole["strokes"], hole["putts"], hole["green"], hole["fairway"]) == (
+        5,
+        None,
+        None,
+        None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_record_hole_tool_still_needs_the_fairway(make_caddie_data) -> None:
+    data = make_caddie_data()
+    agent = HoleByHoleAgent(data.round)
+
+    with pytest.raises(ToolError, match="fairway"):
+        await agent.record_hole(_context(data), 1, 5, 2, "hit")
+    assert 1 not in data.round.scores
 
 
 # --- LLM behavior ---------------------------------------------------------------
@@ -234,6 +286,57 @@ async def test_asks_for_missing_details_before_recording(make_caddie_data) -> No
         result.expect.no_more_events()
 
     assert 1 not in data.round.scores
+
+
+@pytest.mark.llm
+@pytest.mark.asyncio
+async def test_records_unknown_putts_without_guessing(
+    make_caddie_data, publisher
+) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=data) as session,
+    ):
+        await _start(session, data)
+
+        result = await session.run(
+            user_input=(
+                "Hole one I made a five, hit the fairway and missed the green "
+                "left, but I honestly don't remember how many putts, no idea on "
+                "putts."
+            )
+        )
+
+        call = result.expect.next_event().is_function_call(
+            name="record_hole",
+            arguments={
+                "hole_number": 1,
+                "strokes": 5,
+                "fairway": "hit",
+                "green": "left",
+            },
+        )
+        assert _arguments(call).get("putts") is None
+        result.expect.next_event().is_function_call_output(is_error=False)
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                judge_llm,
+                intent=(
+                    "Briefly acknowledges hole one and asks about hole two. Does "
+                    "not ask about the putts on hole one again."
+                ),
+            )
+        )
+        result.expect.no_more_events()
+
+    assert data.round.scores[1].strokes == 5
+    assert data.round.scores[1].putts is None
+    hole_one = publisher.last["holes"][0]
+    assert hole_one["strokes"] == 5
+    assert hole_one["putts"] is None
 
 
 @pytest.mark.llm
