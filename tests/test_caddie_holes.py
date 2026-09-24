@@ -1,0 +1,244 @@
+"""In-process LLM tests for HoleByHoleAgent: collecting hole-by-hole stats by
+voice, converting golf terms to strokes, asking for missing details, handling
+corrections, and finishing the round.
+"""
+
+import json
+
+import pytest
+from livekit.agents import AgentSession, inference, llm
+
+from caddie import CaddieData, HoleByHoleAgent
+
+
+def _judge_llm() -> llm.LLM:
+    return inference.LLM(model="openai/gpt-4.1-mini")
+
+
+def _arguments(fnc_call) -> dict:
+    return json.loads(fnc_call.event().item.arguments)
+
+
+async def _start(session: AgentSession, data: CaddieData) -> None:
+    # capture_run consumes the on_enter greeting so it can't leak into the
+    # events of the first session.run().
+    await session.start(HoleByHoleAgent(data.round), capture_run=True)
+
+
+@pytest.mark.asyncio
+async def test_records_hole_with_full_detail(make_caddie_data, publisher) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=data) as session,
+    ):
+        await _start(session, data)
+
+        result = await session.run(
+            user_input=(
+                "On the first hole I made a five. I hit the fairway, missed the "
+                "green short, and two putted."
+            )
+        )
+
+        result.expect.next_event().is_function_call(
+            name="record_hole",
+            arguments={
+                "hole_number": 1,
+                "strokes": 5,
+                "putts": 2,
+                "fairway": "hit",
+                "green": "short",
+            },
+        )
+        result.expect.next_event().is_function_call_output(is_error=False)
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                judge_llm,
+                intent=(
+                    "Briefly acknowledges the score on hole one (a five, or a "
+                    "bogey) and asks about hole two."
+                ),
+            )
+        )
+        result.expect.no_more_events()
+
+    assert publisher.last is not None
+    hole_one = next(h for h in publisher.last["holes"] if h["number"] == 1)
+    assert hole_one["strokes"] == 5
+    assert publisher.last["status"] == "in_progress"
+
+
+@pytest.mark.asyncio
+async def test_converts_golf_terms_and_skips_fairway_on_par_three(
+    make_caddie_data,
+) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=data) as session,
+    ):
+        await _start(session, data)
+
+        result = await session.run(
+            user_input="Hole two I made par, hit the green and two putted."
+        )
+
+        call = result.expect.next_event().is_function_call(
+            name="record_hole",
+            arguments={"hole_number": 2, "strokes": 3, "putts": 2, "green": "hit"},
+        )
+        assert _arguments(call).get("fairway") is None
+        result.expect.next_event().is_function_call_output(is_error=False)
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                judge_llm,
+                intent=(
+                    "Acknowledges par on hole two and moves on to hole three. "
+                    "Does not ask about the fairway for hole two."
+                ),
+            )
+        )
+        result.expect.no_more_events()
+
+    assert data.round.scores[2].strokes == 3
+    assert data.round.scores[2].fairway is None
+
+
+@pytest.mark.asyncio
+async def test_asks_for_missing_details_before_recording(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=data) as session,
+    ):
+        await _start(session, data)
+
+        result = await session.run(user_input="I made a bogey on the first hole.")
+
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                judge_llm,
+                intent=(
+                    "Asks the golfer for at least one missing detail about hole "
+                    "one, such as the fairway, the green, or the number of putts, "
+                    "instead of assuming it."
+                ),
+            )
+        )
+        result.expect.no_more_events()
+
+    assert 1 not in data.round.scores
+
+
+@pytest.mark.asyncio
+async def test_corrects_an_earlier_hole(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    async with AgentSession[CaddieData](userdata=data) as session:
+        await _start(session, data)
+
+        first = await session.run(
+            user_input=(
+                "On the first hole I made a five. I hit the fairway, missed the "
+                "green short, and two putted."
+            )
+        )
+        first.expect.contains_function_call(
+            name="record_hole", arguments={"hole_number": 1, "strokes": 5}
+        )
+
+        result = await session.run(
+            user_input="Actually, hole one was a six, not a five."
+        )
+
+        result.expect.contains_function_call(
+            name="record_hole",
+            arguments={
+                "hole_number": 1,
+                "strokes": 6,
+                "putts": 2,
+                "fairway": "hit",
+                "green": "short",
+            },
+        )
+
+    score = data.round.scores[1]
+    assert score.strokes == 6
+    assert score.putts == 2
+    assert score.fairway == "hit"
+    assert score.green == "short"
+
+
+# Holes 1-8 at Blue Ash (pars 4, 3, 4, 3, 5, 4, 4, 5): 36 strokes on a par 32.
+_FRONT_EIGHT = {
+    1: (5, 2, "short", "hit"),
+    2: (3, 2, "hit", None),
+    3: (4, 2, "hit", "hit"),
+    4: (4, 2, "left", None),
+    5: (5, 2, "hit", "right"),
+    6: (5, 2, "long", "hit"),
+    7: (4, 2, "hit", "hit"),
+    8: (6, 2, "short", "left"),
+}
+
+
+@pytest.mark.asyncio
+async def test_finishes_round_after_confirmation(make_caddie_data, publisher) -> None:
+    data = make_caddie_data(holes_played=9, starting_hole=1)
+    for number, (strokes, putts, green, fairway) in _FRONT_EIGHT.items():
+        data.round.record_hole(
+            number, strokes=strokes, putts=putts, green=green, fairway=fairway
+        )
+
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=data) as session,
+    ):
+        await _start(session, data)
+
+        result = await session.run(
+            user_input=(
+                "On nine I made a four. I hit the fairway, hit the green, and "
+                "two putted."
+            )
+        )
+
+        result.expect.next_event().is_function_call(
+            name="record_hole",
+            arguments={
+                "hole_number": 9,
+                "strokes": 4,
+                "putts": 2,
+                "fairway": "hit",
+                "green": "hit",
+            },
+        )
+        result.expect.next_event().is_function_call_output(is_error=False)
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                judge_llm,
+                intent=(
+                    "States the round total of forty strokes, four over par, and "
+                    "asks the golfer to confirm it."
+                ),
+            )
+        )
+        result.expect.no_more_events()
+        assert data.status == "in_progress"
+
+        confirm = await session.run(user_input="Yep, that's right.")
+        confirm.expect.contains_function_call(name="finish_round")
+
+    assert data.status == "complete"
+    assert publisher.last is not None
+    assert publisher.last["status"] == "complete"
+    assert publisher.last["summary"]["total_strokes"] == 40
