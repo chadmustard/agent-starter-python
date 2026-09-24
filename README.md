@@ -23,6 +23,14 @@ The starter project includes:
 
 This starter app is compatible with any [custom web/mobile frontend](https://docs.livekit.io/frontends/) or [telephony](https://docs.livekit.io/telephony/).
 
+## Golf scorecard caddie
+
+This project has been adapted into a post-round golf caddie. The golfer tells the agent which course they played; `RoundSetupAgent` (`src/caddie.py`) looks it up with the free [OpenGolfAPI](https://opengolfapi.org/) (`src/golf_api.py`), confirms it, and collects the tees, the number of holes, and the starting hole. It then hands off to `HoleByHoleAgent`, which walks the golfer through their round and records strokes, putts, and fairway/green results for each hole.
+
+OpenGolfAPI's course data is licensed [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/); any use of it must carry the attribution "© OpenStreetMap contributors (ODbL 1.0) via OpenGolfAPI".
+
+**Frontend contract:** after every change, the agent publishes the full scorecard as JSON on text-stream topic `golf.scorecard`, and answers the RPC method `golf.get_scorecard` with the latest payload for a client that joins late (`src/publisher.py`). See `build_payload` in `src/scorecard.py` for the exact payload shape.
+
 ## Using coding agents
 
 This project is designed to work with coding agents like [Claude Code](https://claude.com/product/claude-code), [Cursor](https://www.cursor.com/), and [Codex](https://openai.com/codex/).

@@ -40,6 +40,20 @@ from scorecard import (
 
 logger = logging.getLogger("caddie")
 
+# A Large Language Model (LLM) is your agent's brain, processing user input and
+# generating a response. See all available models at
+# https://docs.livekit.io/agents/models/llm/
+#
+# To use a realtime model instead of a voice pipeline, replace the `llm=`
+# argument on each Agent below with a realtime model and remove the STT/TTS
+# from the AgentSession in agent.py. (Note: This is for OpenAI GPT-Live, the
+# recommended speech-to-speech model. For other providers, see
+# https://docs.livekit.io/agents/models/realtime/)
+# 1. Install livekit-agents[openai]
+# 2. Set OPENAI_API_KEY in .env.local
+# 3. Add `from livekit.plugins import openai` to the top of this file
+# 4. Replace the llm argument with:
+#    llm=openai.realtime.GPTLiveModel(voice="marin"),
 AGENT_LLM_MODEL = "google/gemma-4-31b-it"
 
 MAX_SEARCH_RESULTS = 5
