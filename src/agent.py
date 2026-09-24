@@ -70,12 +70,6 @@ async def my_agent(ctx: JobContext):
         expressive=True,
     )
 
-    # Join the room and connect to the user. Connecting before session.start()
-    # makes the local participant available, so the scorecard RPC is
-    # registered before the frontend could first call it.
-    await ctx.connect()
-    publisher.register_rpc()
-
     # Start the session, which initializes the voice pipeline and warms up the models.
     await session.start(
         agent=RoundSetupAgent(),
@@ -88,6 +82,11 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
+
+    # session.start() connects the room, so the local participant is ready now.
+    # Register the scorecard RPC before the first push so the frontend can
+    # fetch the current state as soon as it joins.
+    publisher.register_rpc()
 
     # Push the initial (empty) scorecard so the frontend has something to
     # render right away, even before the golfer says anything.
