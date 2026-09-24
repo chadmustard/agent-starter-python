@@ -130,10 +130,15 @@ def _round_context(round_: Round) -> str:
         f"{spec.number}: par {spec.par if spec.par is not None else 'unknown'}"
         for spec in round_.holes
     )
+    recorded = [spec.number for spec in round_.holes if spec.number in round_.scores]
+    if recorded:
+        progress = "Already recorded: " + ", ".join(str(n) for n in recorded) + "."
+    else:
+        progress = "No holes are recorded yet."
     return (
         f"The golfer played {round_.holes_played} holes at {round_.course.name} "
         f"from the {round_.tee_name} tees, starting on hole {round_.starting_hole}. "
-        f"Play order: {order}. Hole pars: {pars}."
+        f"Play order: {order}. Hole pars: {pars}. {progress}"
     )
 
 
@@ -207,6 +212,13 @@ def record_hole_result(
     if par is not None and known_par is not None:
         text = f"Par for hole {hole_number} changed from {known_par} to {par}. {text}"
 
+    return _with_next_step(round_, text)
+
+
+def _with_next_step(round_: Round, text: str) -> str:
+    """Append what the LLM should do next: ask about the next missing hole,
+    or read back the total once every hole is recorded.
+    """
     next_spec = round_.next_hole()
     if next_spec is not None:
         # The trailing directive keeps the LLM from jumping back to an earlier
@@ -232,47 +244,81 @@ def _require_round(context: RunContext[CaddieData]) -> Round:
     return round_
 
 
+_HOLE_BY_HOLE_PROMPT = textwrap.dedent(
+    """\
+    You are a friendly, upbeat golf caddie helping a golfer fill out their scorecard after their round. The golfer tells you how each hole went and you record it.
+
+    # Round
+
+    {round_context}
+
+    {output_rules}
+    # Recording holes
+
+    - Walk through the holes in play order, but accept holes in any order. If the golfer describes several holes at once, record each hole separately.
+    - For every hole you need: the number of strokes, the number of putts, and the green result: hit, or missed left, right, short, or long.
+    - On par fours and par fives you also need the fairway result: hit, or missed left, right, short, or long. Never ask about the fairway on a par three.
+    - Convert golf terms using the hole's par: birdie is par minus one, bogey is par plus one, double bogey is par plus two, and "made par" means strokes equal to par. "Two putted" means two putts, "one putt" means one putt. "Hit the green" or "green in regulation" means the green result is hit.
+    - If the golfer leaves out any detail, ask for just the missing details before you record the hole. Never guess or fill in a default.
+    - If the golfer says they don't remember a detail, record it as unknown right away instead of guessing or pressing them for it: pass null for putts, or "unknown" for the fairway or green.
+    - As soon as you have every detail for a hole, record it right away, before saying anything.
+    - If the golfer corrects a hole you already recorded, record that hole again with all of its details, keeping the details they did not change.
+    - After recording, briefly acknowledge the score in a few words, for example "Bogey on one, got it," then ask about exactly the hole the recording result says is next, naming its number and par. That is the first hole still missing from the scorecard, so trust it even if you haven't discussed the holes before it. Do not read back every stat.
+    - When every hole is recorded, tell the golfer their total score and how it compares to par, and ask them to confirm it's right. Only after they confirm, finish the round.
+    - If the golfer asks how they are doing, check the scorecard and give a short summary.
+
+    # Changing the round setup
+
+    - If the golfer says the tees, the number of holes, or the starting hole is wrong, change the round setup right away, before saying anything, passing only what they are changing. Then ask about exactly the hole the result says is next. Never say the setup changed unless the change succeeded.
+    - The course can't be changed. If the golfer says they played a different course, tell them that switching courses means starting a new session.
+    """
+)
+
+
+def _hole_by_hole_instructions(round_: Round) -> str:
+    return _HOLE_BY_HOLE_PROMPT.format(
+        round_context=_round_context(round_), output_rules=_VOICE_OUTPUT_RULES
+    )
+
+
+def _setup_changes(old: Round, new: Round) -> list[str]:
+    changes = []
+    if (old.tee_name, old.tee) != (new.tee_name, new.tee):
+        changes.append(f"tees from {old.tee_name} to {new.tee_name}")
+    if old.holes_played != new.holes_played:
+        changes.append(f"holes played from {old.holes_played} to {new.holes_played}")
+    if old.starting_hole != new.starting_hole:
+        changes.append(f"starting hole from {old.starting_hole} to {new.starting_hole}")
+    return changes
+
+
 class HoleByHoleAgent(Agent):
+    """Records the round hole by hole. The round lives in
+    `session.userdata.round`, the one source of truth: the tools read it
+    there, and the instructions are rebuilt from it whenever it is replaced.
+    `round_` only seeds the initial instructions.
+    """
+
     def __init__(self, round_: Round, *, chat_ctx: ChatContext | None = None) -> None:
-        self._round = round_
         super().__init__(
             llm=inference.LLM(model=AGENT_LLM_MODEL),
             chat_ctx=chat_ctx,
-            instructions=textwrap.dedent(
-                """\
-                You are a friendly, upbeat golf caddie helping a golfer fill out their scorecard after their round. The golfer tells you how each hole went and you record it.
-
-                # Round
-
-                {round_context}
-
-                {output_rules}
-                # Recording holes
-
-                - Walk through the holes in play order, but accept holes in any order. If the golfer describes several holes at once, record each hole separately.
-                - For every hole you need: the number of strokes, the number of putts, and the green result: hit, or missed left, right, short, or long.
-                - On par fours and par fives you also need the fairway result: hit, or missed left, right, short, or long. Never ask about the fairway on a par three.
-                - Convert golf terms using the hole's par: birdie is par minus one, bogey is par plus one, double bogey is par plus two, and "made par" means strokes equal to par. "Two putted" means two putts, "one putt" means one putt. "Hit the green" or "green in regulation" means the green result is hit.
-                - If the golfer leaves out any detail, ask for just the missing details before you record the hole. Never guess or fill in a default.
-                - If the golfer says they don't remember a detail, record it as unknown right away instead of guessing or pressing them for it: pass null for putts, or "unknown" for the fairway or green.
-                - As soon as you have every detail for a hole, record it right away, before saying anything.
-                - If the golfer corrects a hole you already recorded, record that hole again with all of its details, keeping the details they did not change.
-                - After recording, briefly acknowledge the score in a few words, for example "Bogey on one, got it," then ask about exactly the hole the recording result says is next, naming its number and par. That is the first hole still missing from the scorecard, so trust it even if you haven't discussed the holes before it. Do not read back every stat.
-                - When every hole is recorded, tell the golfer their total score and how it compares to par, and ask them to confirm it's right. Only after they confirm, finish the round.
-                - If the golfer asks how they are doing, check the scorecard and give a short summary.
-                """
-            ).format(
-                round_context=_round_context(round_),
-                output_rules=_VOICE_OUTPUT_RULES,
-            ),
+            instructions=_hole_by_hole_instructions(round_),
         )
 
+    async def _refresh_instructions(self, round_: Round) -> None:
+        instructions = _hole_by_hole_instructions(round_)
+        if instructions != self.instructions:
+            await self.update_instructions(instructions)
+
     async def on_enter(self) -> None:
-        spec = self._round.next_hole() or self._round.holes[0]
+        round_ = self.session.userdata.round
+        await self._refresh_instructions(round_)
+        spec = round_.next_hole() or round_.holes[0]
         self.session.generate_reply(
             instructions=(
                 "Tell the golfer you're ready to go through their round, then ask "
-                f"how {_hole_label(self._round, spec.number)} went. Mention the "
+                f"how {_hole_label(round_, spec.number)} went. Mention the "
                 "hole number and its par."
             )
         )
@@ -295,7 +341,7 @@ class HoleByHoleAgent(Agent):
             strokes: Total strokes on the hole, including putts. Convert golf terms using the hole's par, for example a bogey on a par four is 5.
             putts: Number of putts on the hole. Pass null only when the golfer says they don't remember their putts.
             green: "hit" if the approach finished on the green in regulation, otherwise the side the golfer missed on: "left", "right", "short", or "long". "unknown" only when the golfer says they don't remember; never as a default.
-            fairway: Tee shot result on par fours and par fives: "hit", "left", "right", "short", or "long". "unknown" only when the golfer says they don't remember; never as a default. Leave this out on par threes.
+            fairway: Leave this out on par threes, which have no fairway result. On par fours and par fives, the tee shot result: "hit", "left", "right", "short", or "long", or "unknown" only when the golfer says they don't remember it.
             par: The hole's par. Only pass this when the golfer states the par themselves or the course has no par for this hole; otherwise leave it out.
         """
         round_ = _require_round(context)
@@ -314,10 +360,93 @@ class HoleByHoleAgent(Agent):
 
         context.userdata.status = "in_progress"
         await context.userdata.push()
+        await self._refresh_instructions(round_)
         logger.info(
             "recorded hole %s: %s strokes, %s putts", hole_number, strokes, putts
         )
         return text
+
+    @function_tool
+    async def change_round_setup(
+        self,
+        context: RunContext[CaddieData],
+        tee_name: str | None = None,
+        tee_gender: Literal["male", "female"] | None = None,
+        holes_played: int | None = None,
+        starting_hole: int | None = None,
+    ) -> str:
+        """Change the round's tees, number of holes, or starting hole when the golfer says one was wrong. Pass only what the golfer is changing and leave the rest out. Scores already recorded are kept for every hole still in the round.
+
+        Args:
+            tee_name: The tees the golfer actually played, for example "Gold".
+            tee_gender: "male" or "female". Only pass this when the golfer said they played the men's or women's tees; never guess.
+            holes_played: 9 or 18.
+            starting_hole: The hole the golfer actually started on, for example 10.
+        """
+        old = _require_round(context)
+        if all(v is None for v in (tee_name, tee_gender, holes_played, starting_hole)):
+            raise ToolError(
+                "Nothing to change. Ask the golfer whether the tees, the number "
+                "of holes, or the starting hole is wrong."
+            )
+
+        course = old.course
+        name, tee = old.tee_name, old.tee
+        if tee_name is not None or tee_gender is not None:
+            if course.tees:
+                if tee_name is None:
+                    # Only the gender changed: the same tee name, men's or women's.
+                    tee_name = old.tee_name
+                tee = _match_tee(course, tee_name, tee_gender)
+                name = tee.name
+            elif tee_name is not None:
+                tee, name = None, _spoken_tee_name(tee_name)
+
+        try:
+            new = Round.create(
+                course,
+                name,
+                tee,
+                holes_played if holes_played is not None else old.holes_played,
+                starting_hole if starting_hole is not None else old.starting_hole,
+            )
+        except ScorecardError as e:
+            raise ToolError(str(e)) from e
+
+        # Keep every recorded hole still in the round, with the par it was
+        # recorded against (the golfer may have given it).
+        in_new_round = {spec.number for spec in new.holes}
+        dropped = []
+        for spec in old.holes:
+            if spec.number not in old.scores:
+                continue
+            if spec.number in in_new_round:
+                new.scores[spec.number] = old.scores[spec.number]
+                new.hole(spec.number).par = spec.par
+            else:
+                dropped.append(spec.number)
+
+        context.userdata.round = new
+        context.userdata.status = "in_progress"
+        await context.userdata.push()
+        await self._refresh_instructions(new)
+
+        changes = _setup_changes(old, new)
+        logger.info("round setup changed: %s; dropped %s", changes, dropped)
+        if changes:
+            text = "Changed the " + " and the ".join(changes) + "."
+        else:
+            text = "The round was already set up that way; nothing changed."
+        if dropped:
+            holes = ", ".join(str(n) for n in dropped)
+            label = "hole" if len(dropped) == 1 else "holes"
+            text += (
+                f" Dropped the scores for {label} {holes}, which "
+                f"{'is' if len(dropped) == 1 else 'are'} no longer in the round; "
+                "tell the golfer."
+            )
+
+        return _with_next_step(new, text)
 
     @function_tool
     async def get_scorecard(self, context: RunContext[CaddieData]) -> str:

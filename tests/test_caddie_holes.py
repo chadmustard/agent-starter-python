@@ -4,6 +4,7 @@ hole-by-hole stats by voice, converting golf terms to strokes, asking for
 missing details, handling corrections, and finishing the round.
 """
 
+import dataclasses
 import json
 from types import SimpleNamespace
 
@@ -152,6 +153,187 @@ async def test_record_hole_tool_still_needs_the_fairway(make_caddie_data) -> Non
     with pytest.raises(ToolError, match="fairway"):
         await agent.record_hole(_context(data), 1, 5, 2, "hit")
     assert 1 not in data.round.scores
+
+
+# --- change_round_setup (no LLM) -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_change_starting_hole_keeps_scores_and_refreshes_prompt(
+    make_caddie_data, publisher
+) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    agent = HoleByHoleAgent(data.round)
+    assert "starting on hole 1." in agent.instructions
+
+    text = await agent.change_round_setup(_context(data), starting_hole=10)
+
+    round_ = data.round
+    assert [spec.number for spec in round_.holes][:2] == [10, 11]
+    assert round_.starting_hole == 10
+    assert round_.scores[1].strokes == 5
+    assert "starting hole from 1 to 10" in text
+    assert "dropped" not in text.lower()
+    assert text.endswith("Ask about hole 10 now.")
+    assert "starting on hole 10." in agent.instructions
+    assert "Play order: 10, 11," in agent.instructions
+    assert publisher.last["starting_hole"] == 10
+    assert publisher.last["status"] == "in_progress"
+    assert publisher.last["summary"]["total_strokes"] == 5
+
+
+@pytest.mark.asyncio
+async def test_change_to_nine_holes_drops_holes_outside_the_round(
+    make_caddie_data, publisher
+) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    data.round.record_hole(12, strokes=4, putts=2, green="hit", fairway="hit")
+
+    text = await HoleByHoleAgent(data.round).change_round_setup(
+        _context(data), holes_played=9
+    )
+
+    assert data.round.holes_played == 9
+    assert set(data.round.scores) == {1}
+    assert "holes played from 18 to 9" in text
+    assert "Dropped the scores for hole 12" in text
+    assert text.endswith("Ask about hole 2 now.")
+    assert len(publisher.last["holes"]) == 9
+
+
+@pytest.mark.asyncio
+async def test_change_tee_updates_tee_and_yardages(make_caddie_data, publisher) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+
+    text = await HoleByHoleAgent(data.round).change_round_setup(
+        _context(data), tee_name="white tees", tee_gender="female"
+    )
+
+    round_ = data.round
+    assert round_.tee_name == "White"
+    assert round_.tee is not None and round_.tee.gender == "female"
+    assert round_.hole(1).yardage == 355
+    assert round_.scores[1].strokes == 5
+    assert "tees from Gold to White" in text
+    assert publisher.last["tee"]["name"] == "White"
+    assert publisher.last["tee"]["gender"] == "female"
+
+
+@pytest.mark.asyncio
+async def test_change_tee_gender_only_keeps_the_tee_name(make_caddie_data) -> None:
+    data = make_caddie_data()
+    agent = HoleByHoleAgent(data.round)
+    await agent.change_round_setup(_context(data), tee_name="White", tee_gender="male")
+
+    await agent.change_round_setup(_context(data), tee_gender="female")
+
+    assert data.round.tee_name == "White"
+    assert data.round.tee.gender == "female"
+
+
+@pytest.mark.asyncio
+async def test_change_tee_shared_by_men_and_women_asks(make_caddie_data) -> None:
+    data = make_caddie_data()
+    before = data.round
+
+    with pytest.raises(ToolError, match="men's or women's White"):
+        await HoleByHoleAgent(data.round).change_round_setup(
+            _context(data), tee_name="white"
+        )
+    assert data.round is before
+
+
+@pytest.mark.asyncio
+async def test_change_to_an_unknown_tee_lists_the_options(make_caddie_data) -> None:
+    data = make_caddie_data()
+    before = data.round
+
+    with pytest.raises(ToolError, match="Black, Gold, White, Green"):
+        await HoleByHoleAgent(data.round).change_round_setup(
+            _context(data), tee_name="Red"
+        )
+    assert data.round is before
+
+
+@pytest.mark.asyncio
+async def test_change_to_an_invalid_round_is_rejected(
+    make_caddie_data, publisher
+) -> None:
+    data = make_caddie_data()
+    before = data.round
+    agent = HoleByHoleAgent(data.round)
+    instructions = agent.instructions
+
+    with pytest.raises(ToolError, match="nine or eighteen"):
+        await agent.change_round_setup(_context(data), holes_played=12)
+    with pytest.raises(ToolError, match="between one and 18"):
+        await agent.change_round_setup(_context(data), starting_hole=19)
+    assert data.round is before
+    assert agent.instructions == instructions
+    assert publisher.payloads == []
+
+
+@pytest.mark.asyncio
+async def test_change_with_nothing_to_change(make_caddie_data) -> None:
+    data = make_caddie_data()
+    with pytest.raises(ToolError):
+        await HoleByHoleAgent(data.round).change_round_setup(_context(data))
+
+
+@pytest.mark.asyncio
+async def test_change_keeps_a_par_the_golfer_gave(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="hit", fairway="hit", par=5)
+
+    await HoleByHoleAgent(data.round).change_round_setup(
+        _context(data), starting_hole=10
+    )
+
+    assert data.round.hole(1).par == 5
+
+
+@pytest.mark.asyncio
+async def test_change_tee_on_a_course_without_tee_data(
+    make_caddie_data, blue_ash_course
+) -> None:
+    data = make_caddie_data()
+    course = dataclasses.replace(blue_ash_course, tees=[])
+    data.course = course
+    data.round = dataclasses.replace(data.round, course=course, tee=None)
+
+    await HoleByHoleAgent(data.round).change_round_setup(
+        _context(data), tee_name="Blue tees"
+    )
+
+    assert data.round.tee is None
+    assert data.round.tee_name == "Blue"
+
+
+@pytest.mark.asyncio
+async def test_prompt_lists_recorded_holes(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    agent = HoleByHoleAgent(data.round)
+    assert "No holes are recorded yet." in agent.instructions
+
+    await agent.record_hole(_context(data), 1, 5, 2, "short", fairway="hit")
+    await agent.record_hole(_context(data), 3, 4, 2, "hit", fairway="hit")
+
+    assert "Already recorded: 1, 3." in agent.instructions
+
+
+@pytest.mark.asyncio
+async def test_tools_read_the_round_from_userdata(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    agent = HoleByHoleAgent(data.round)
+    await agent.change_round_setup(_context(data), holes_played=9)
+
+    text = await agent.record_hole(_context(data), 9, 5, 2, "hit", fairway="hit")
+
+    assert "Ask about hole 1 now." in text
+    assert "of 9." in await agent.get_scorecard(_context(data))
 
 
 # --- LLM behavior ---------------------------------------------------------------
@@ -337,6 +519,48 @@ async def test_records_unknown_putts_without_guessing(
     hole_one = publisher.last["holes"][0]
     assert hole_one["strokes"] == 5
     assert hole_one["putts"] is None
+
+
+@pytest.mark.llm
+@pytest.mark.asyncio
+async def test_changes_the_starting_hole_after_setup(
+    make_caddie_data, publisher
+) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=data) as session,
+    ):
+        await _start(session, data)
+
+        result = await session.run(
+            user_input="Wait, sorry, I actually started on the tenth hole."
+        )
+
+        call = result.expect.next_event().is_function_call(
+            name="change_round_setup", arguments={"starting_hole": 10}
+        )
+        args = _arguments(call)
+        assert args.get("holes_played") in (None, 18)
+        assert args.get("tee_name") is None
+        result.expect.next_event().is_function_call_output(is_error=False)
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                judge_llm,
+                intent=(
+                    "Acknowledges that the round started on hole ten and asks "
+                    "how hole ten went."
+                ),
+            )
+        )
+        result.expect.no_more_events()
+
+    assert data.round.holes[0].number == 10
+    assert data.round.scores[1].strokes == 5
+    assert publisher.last["starting_hole"] == 10
 
 
 @pytest.mark.llm
