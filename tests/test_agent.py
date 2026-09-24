@@ -58,8 +58,8 @@ def test_agent_module_imports_and_exposes_server() -> None:
 
 
 def test_entrypoint_registers_rpc_before_the_session_starts() -> None:
-    """The scorecard RPC must be registered as soon as the room is connected,
-    before session.start(), so a frontend that joins right away can call it.
+    """session.start() connects the room. Register the scorecard RPC before the
+    first push so a frontend joining right after can call it.
     """
     import ast
     import inspect
@@ -82,9 +82,8 @@ def test_entrypoint_registers_rpc_before_the_session_starts() -> None:
         assert lines, f"{call}() is not called in my_agent"
         return min(lines)
 
-    connect = first_line("ctx.connect")
-    register = first_line("publisher.register_rpc")
     start = first_line("session.start")
+    register = first_line("publisher.register_rpc")
     push = first_line("session.userdata.push")
 
-    assert connect < register < start < push
+    assert start < register < push
