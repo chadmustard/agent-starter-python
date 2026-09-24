@@ -60,6 +60,42 @@ async def test_search_with_no_results(setup_data, fake_golf_api) -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_retries_without_the_state(setup_data, fake_golf_api) -> None:
+    search = fake_golf_api.search_courses
+
+    async def nothing_in_a_state(query, state=None, limit=5):
+        results = await search(query, state=state, limit=limit)
+        return [] if state else results
+
+    fake_golf_api.search_courses = nothing_in_a_state
+    text = await RoundSetupAgent().search_courses(
+        _context(setup_data), "Blue Ash", state="KY"
+    )
+
+    assert fake_golf_api.calls == [
+        ("search_courses", {"query": "Blue Ash", "state": "KY", "limit": 5}),
+        ("search_courses", {"query": "Blue Ash", "state": None, "limit": 5}),
+    ]
+    assert "1. Blue Ash Golf Course, Blue Ash, OH, par 72" in text
+    assert "KY" in text
+    assert [c.name for c in setup_data.search_results] == ["Blue Ash Golf Course"]
+
+
+@pytest.mark.asyncio
+async def test_search_with_no_results_in_or_out_of_the_state(
+    setup_data, fake_golf_api
+) -> None:
+    fake_golf_api.return_no_results()
+    text = await RoundSetupAgent().search_courses(
+        _context(setup_data), "Zzyzx Links", state="CA"
+    )
+
+    assert [call[1]["state"] for call in fake_golf_api.calls] == ["CA", None]
+    assert text.startswith("No courses matched")
+    assert setup_data.search_results == []
+
+
+@pytest.mark.asyncio
 async def test_search_when_directory_is_down(setup_data, fake_golf_api) -> None:
     async def fail(*args, **kwargs):
         raise GolfAPIError("timed out")

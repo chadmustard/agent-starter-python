@@ -147,6 +147,15 @@ def _scorecard_text(round_: Round) -> str:
         f"Fairways hit {summary['fairways_hit']} of {summary['fairways_possible']}. "
         f"Greens hit {summary['greens_hit']} of {summary['greens_possible']}."
     )
+    for label, key in (("Front nine", "front_nine"), ("Back nine", "back_nine")):
+        nine = summary[key]
+        # A nine outside the round is None; one with nothing recorded yet has
+        # zero strokes and would only confuse the summary.
+        if nine and nine["strokes"]:
+            text += (
+                f" {label}: {nine['strokes']} strokes, par {nine['par']}, "
+                f"{nine['putts']} putts."
+            )
     missing = round_.missing_holes()
     if missing:
         text += " Missing holes: " + ", ".join(str(n) for n in missing) + "."
@@ -468,31 +477,42 @@ class RoundSetupAgent(Agent):
             state = state.strip().upper()
             if len(state) != 2 or not state.isalpha():
                 state = None
-        try:
-            results = await context.userdata.golf_api.search_courses(
-                course_name, state=state, limit=MAX_SEARCH_RESULTS
-            )
-        except GolfAPIError as e:
-            logger.warning("course search failed: %s", e)
-            raise ToolError(
-                "The course directory is unavailable right now. Tell the golfer "
-                "and ask them to try again in a moment."
-            ) from e
 
-        results = results[:MAX_SEARCH_RESULTS]
+        async def search(state: str | None) -> list[CourseSummary]:
+            try:
+                results = await context.userdata.golf_api.search_courses(
+                    course_name, state=state, limit=MAX_SEARCH_RESULTS
+                )
+            except GolfAPIError as e:
+                logger.warning("course search failed: %s", e)
+                raise ToolError(
+                    "The course directory is unavailable right now. Tell the "
+                    "golfer and ask them to try again in a moment."
+                ) from e
+            logger.info(
+                "course search %r (%s): %d results", course_name, state, len(results)
+            )
+            return results[:MAX_SEARCH_RESULTS]
+
+        results = await search(state)
+        # The golfer or the LLM may have the state wrong (a course near a state
+        # line, a misheard city), so try once more without it.
+        widened = False
+        if not results and state is not None:
+            results = await search(None)
+            widened = bool(results)
+
         context.userdata.search_results = results
-        logger.info(
-            "course search %r (%s): %d results", course_name, state, len(results)
-        )
 
         if not results:
-            where = f" in {state}" if state else ""
             return (
-                f"No courses matched {course_name!r}{where}; ask for the city or "
+                f"No courses matched {course_name!r}; ask for the city or "
                 "state or another spelling."
             )
 
         lines = [_search_result_line(i, course) for i, course in enumerate(results, 1)]
+        if widened:
+            lines.insert(0, f"Nothing matched in {state}, but these did elsewhere:")
         if len(results) == 1:
             lines.append(
                 "Ask the golfer to confirm this is their course before selecting it."

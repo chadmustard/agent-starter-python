@@ -5,6 +5,7 @@ missing details, handling corrections, and finishing the round.
 """
 
 import json
+from types import SimpleNamespace
 
 import pytest
 from livekit.agents import AgentSession, inference, llm
@@ -65,6 +66,40 @@ def test_record_result_next_hole_and_completion(make_caddie_data) -> None:
         "All 9 holes are recorded. Total 37, +1 to par. "
         "Read the total back and ask the golfer to confirm."
     )
+
+
+# --- get_scorecard (no LLM) ---------------------------------------------------
+
+
+def _context(data: CaddieData) -> SimpleNamespace:
+    # The tools only read `context.userdata`.
+    return SimpleNamespace(userdata=data)
+
+
+@pytest.mark.asyncio
+async def test_scorecard_text_includes_front_and_back_nine(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    data.round.record_hole(2, strokes=3, putts=1, green="hit")
+    data.round.record_hole(10, strokes=6, putts=3, green="left", fairway="right")
+
+    text = await HoleByHoleAgent(data.round).get_scorecard(_context(data))
+
+    assert "Front nine: 8 strokes, par 7, 3 putts." in text
+    assert "Back nine: 6 strokes, par 5, 3 putts." in text
+
+
+@pytest.mark.asyncio
+async def test_scorecard_text_leaves_out_a_nine_with_nothing_recorded(
+    make_caddie_data,
+) -> None:
+    data = make_caddie_data(holes_played=18, starting_hole=1)
+    data.round.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+
+    text = await HoleByHoleAgent(data.round).get_scorecard(_context(data))
+
+    assert "Front nine: 5 strokes, par 4, 2 putts." in text
+    assert "Back nine" not in text
 
 
 # --- LLM behavior ---------------------------------------------------------------
