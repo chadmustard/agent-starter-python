@@ -126,15 +126,17 @@ class Round:
         fairway: str | None = None,
         par: int | None = None,
     ) -> HoleScore:
-        """Upsert (re-recording a hole replaces it)."""
+        """Upsert (re-recording a hole replaces it). Every argument is
+        validated before anything changes, so a call that raises leaves the
+        hole's par and score untouched.
+        """
         spec = self.hole(number)
 
-        if par is not None:
-            if not (3 <= par <= 6):
-                raise ScorecardError("Par must be between three and six.")
-            spec.par = par
+        if par is not None and not (3 <= par <= 6):
+            raise ScorecardError("Par must be between three and six.")
 
-        if spec.par is None:
+        effective_par = par if par is not None else spec.par
+        if effective_par is None:
             raise ScorecardError(f"What's the par for hole {number}?")
 
         if not (1 <= strokes <= 20):
@@ -149,7 +151,7 @@ class Round:
                 "The green result must be hit, left, right, short, or long."
             )
 
-        if spec.par == 3:
+        if effective_par == 3:
             fairway_result = None
         else:
             if fairway not in SHOT_RESULTS:
@@ -162,6 +164,7 @@ class Round:
         score = HoleScore(
             strokes=strokes, putts=putts, fairway=fairway_result, green=green
         )
+        spec.par = effective_par
         self.scores[number] = score
         return score
 

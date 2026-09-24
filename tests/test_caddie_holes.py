@@ -1,6 +1,7 @@
-"""In-process LLM tests for HoleByHoleAgent: collecting hole-by-hole stats by
-voice, converting golf terms to strokes, asking for missing details, handling
-corrections, and finishing the round.
+"""Tests for HoleByHoleAgent. The first group checks the record_hole result
+text and par handling directly. The rest are in-process LLM tests: collecting
+hole-by-hole stats by voice, converting golf terms to strokes, asking for
+missing details, handling corrections, and finishing the round.
 """
 
 import json
@@ -8,7 +9,65 @@ import json
 import pytest
 from livekit.agents import AgentSession, inference, llm
 
-from caddie import CaddieData, HoleByHoleAgent
+from caddie import CaddieData, HoleByHoleAgent, record_hole_result
+from scorecard import ScorecardError
+
+# --- record_hole result text (no LLM) -----------------------------------------
+
+
+def test_record_result_ignores_par_equal_to_known_par(make_caddie_data) -> None:
+    data = make_caddie_data()
+    text = record_hole_result(
+        data.round, 1, strokes=5, putts=2, green="short", fairway="hit", par=4
+    )
+    assert text.startswith("Recorded hole 1: bogey (5), 2 putts.")
+    assert "changed" not in text
+    assert data.round.hole(1).par == 4
+
+
+def test_record_result_announces_a_changed_par(make_caddie_data) -> None:
+    data = make_caddie_data()
+    text = record_hole_result(
+        data.round, 1, strokes=5, putts=2, green="short", fairway="hit", par=5
+    )
+    assert text.startswith(
+        "Par for hole 1 changed from 4 to 5. Recorded hole 1: par (5), 2 putts."
+    )
+    assert data.round.hole(1).par == 5
+
+
+def test_record_result_failed_call_keeps_par(make_caddie_data) -> None:
+    data = make_caddie_data()
+    with pytest.raises(ScorecardError):
+        record_hole_result(
+            data.round, 1, strokes=5, putts=9, green="short", fairway="hit", par=5
+        )
+    assert data.round.hole(1).par == 4
+    assert 1 not in data.round.scores
+
+
+def test_record_result_next_hole_and_completion(make_caddie_data) -> None:
+    data = make_caddie_data(holes_played=9)
+    text = record_hole_result(
+        data.round, 1, strokes=4, putts=2, green="hit", fairway="hit"
+    )
+    assert text.endswith("Next is hole 2, par 3, 175 yards. Ask about hole 2 now.")
+
+    for number in range(2, 9):
+        par = data.round.hole(number).par
+        record_hole_result(
+            data.round, number, strokes=par, putts=2, green="hit", fairway="hit"
+        )
+    text = record_hole_result(
+        data.round, 9, strokes=5, putts=2, green="hit", fairway="hit"
+    )
+    assert text.endswith(
+        "All 9 holes are recorded. Total 37, +1 to par. "
+        "Read the total back and ask the golfer to confirm."
+    )
+
+
+# --- LLM behavior ---------------------------------------------------------------
 
 
 def _judge_llm() -> llm.LLM:
@@ -108,6 +167,7 @@ async def test_converts_golf_terms_and_skips_fairway_on_par_three(
 
     assert data.round.scores[2].strokes == 3
     assert data.round.scores[2].fairway is None
+    assert data.round.hole(2).par == 3
 
 
 @pytest.mark.asyncio
@@ -174,6 +234,7 @@ async def test_corrects_an_earlier_hole(make_caddie_data) -> None:
     assert score.putts == 2
     assert score.fairway == "hit"
     assert score.green == "short"
+    assert data.round.hole(1).par == 4
 
 
 # Holes 1-8 at Blue Ash (pars 4, 3, 4, 3, 5, 4, 4, 5): 36 strokes on a par 32.

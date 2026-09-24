@@ -130,6 +130,63 @@ def _scorecard_text(round_: Round) -> str:
     return text
 
 
+def record_hole_result(
+    round_: Round,
+    hole_number: int,
+    *,
+    strokes: int,
+    putts: int,
+    green: str,
+    fairway: str | None = None,
+    par: int | None = None,
+) -> str:
+    """Record one hole on the round and return the text the LLM sees.
+
+    A `par` equal to the hole's known par is treated as not passed. A `par`
+    that differs from a known par is applied (the golfer corrected it) and
+    announced at the start of the result, so a wrong par the LLM volunteers
+    is heard rather than silently changing the score. Raises ScorecardError
+    without changing anything when the input is invalid.
+    """
+    known_par = round_.hole(hole_number).par
+    if par is not None and par == known_par:
+        par = None
+
+    score = round_.record_hole(
+        hole_number,
+        strokes=strokes,
+        putts=putts,
+        green=green,
+        fairway=fairway,
+        par=par,
+    )
+    spec = round_.hole(hole_number)
+
+    text = (
+        f"Recorded hole {hole_number}: {score_name(score.strokes, spec.par)} "
+        f"({score.strokes}), {score.putts} putts."
+    )
+    if par is not None and known_par is not None:
+        text = f"Par for hole {hole_number} changed from {known_par} to {par}. {text}"
+
+    next_spec = round_.next_hole()
+    if next_spec is not None:
+        # The trailing directive keeps the LLM from jumping back to an earlier
+        # hole that was recorded before this conversation began.
+        return (
+            f"{text} Next is {_hole_label(round_, next_spec.number)}. "
+            f"Ask about hole {next_spec.number} now."
+        )
+
+    summary = round_.summary()
+    return (
+        f"{text} All {round_.holes_played} holes are recorded. "
+        f"Total {summary['total_strokes']}, "
+        f"{_format_to_par(summary['score_to_par'])} to par. "
+        "Read the total back and ask the golfer to confirm."
+    )
+
+
 def _require_round(context: RunContext[CaddieData]) -> Round:
     round_ = context.userdata.round
     if round_ is None:
@@ -200,11 +257,12 @@ class HoleByHoleAgent(Agent):
             putts: Number of putts on the hole.
             green: "hit" if the approach finished on the green in regulation, otherwise the side the golfer missed on: "left", "right", "short", or "long".
             fairway: Tee shot result on par fours and par fives: "hit", "left", "right", "short", or "long". Leave this out on par threes.
-            par: The hole's par. Only pass this when the par is unknown for this hole or the golfer corrects it; otherwise leave it out.
+            par: The hole's par. Only pass this when the golfer states the par themselves or the course has no par for this hole; otherwise leave it out.
         """
         round_ = _require_round(context)
         try:
-            score = round_.record_hole(
+            text = record_hole_result(
+                round_,
                 hole_number,
                 strokes=strokes,
                 putts=putts,
@@ -217,31 +275,10 @@ class HoleByHoleAgent(Agent):
 
         context.userdata.status = "in_progress"
         await context.userdata.push()
-
-        spec = round_.hole(hole_number)
         logger.info(
             "recorded hole %s: %s strokes, %s putts", hole_number, strokes, putts
         )
-        text = (
-            f"Recorded hole {hole_number}: {score_name(score.strokes, spec.par)} "
-            f"({score.strokes}), {score.putts} putts."
-        )
-        next_spec = round_.next_hole()
-        if next_spec is not None:
-            # The trailing directive keeps the LLM from jumping back to an
-            # earlier hole that was recorded before this conversation began.
-            return (
-                f"{text} Next is {_hole_label(round_, next_spec.number)}. "
-                f"Ask about hole {next_spec.number} now."
-            )
-
-        summary = round_.summary()
-        return (
-            f"{text} All {round_.holes_played} holes are recorded. "
-            f"Total {summary['total_strokes']}, "
-            f"{_format_to_par(summary['score_to_par'])} to par. "
-            "Read the total back and ask the golfer to confirm."
-        )
+        return text
 
     @function_tool
     async def get_scorecard(self, context: RunContext[CaddieData]) -> str:

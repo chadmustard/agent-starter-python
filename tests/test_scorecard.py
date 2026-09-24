@@ -239,6 +239,44 @@ def test_record_hole_invalid_par_override_errors(course, gold_tee):
         round_.record_hole(1, strokes=5, putts=2, green="hit", fairway="hit", par=2)
 
 
+def test_record_hole_failed_call_with_par_override_leaves_par_unchanged(
+    course, gold_tee
+):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    with pytest.raises(ScorecardError):
+        round_.record_hole(1, strokes=5, putts=9, green="hit", fairway="hit", par=5)
+    assert round_.hole(1).par == 4
+    assert 1 not in round_.scores
+
+
+def test_record_hole_failed_call_leaves_existing_score_and_par(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    round_.record_hole(1, strokes=5, putts=2, green="short", fairway="hit")
+    with pytest.raises(ScorecardError):
+        # par 3 override would drop the fairway, but the green is invalid
+        round_.record_hole(1, strokes=4, putts=2, green="nowhere", par=3)
+    assert round_.hole(1).par == 4
+    assert round_.scores[1] == HoleScore(
+        strokes=5, putts=2, fairway="hit", green="short"
+    )
+
+
+def test_record_hole_fairway_checked_against_overridden_par(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 1)
+    # hole 2 is a par 3; overriding to par 4 makes the fairway required
+    with pytest.raises(ScorecardError):
+        round_.record_hole(2, strokes=4, putts=2, green="hit", par=4)
+    assert round_.hole(2).par == 3
+
+
+def test_record_hole_failed_call_on_unknown_par_leaves_par_unknown(course, gold_tee):
+    sparse = _empty_hole_info_course(course)
+    round_ = Round.create(sparse, "Gold", gold_tee, 18, 1)
+    with pytest.raises(ScorecardError):
+        round_.record_hole(1, strokes=0, putts=0, green="hit", fairway="hit", par=4)
+    assert round_.hole(1).par is None
+
+
 def test_record_hole_invalid_green_errors(course, gold_tee):
     round_ = Round.create(course, "Gold", gold_tee, 18, 1)
     with pytest.raises(ScorecardError):
