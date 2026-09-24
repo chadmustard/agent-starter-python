@@ -300,6 +300,15 @@ def build_payload(
                 "slope": round_.tee.slope,
                 "yardage": round_.tee.yardage,
             }
+        else:
+            # No tee data for this course: keep the tee name the golfer gave.
+            tee_payload = {
+                "name": round_.tee_name,
+                "gender": None,
+                "course_rating": None,
+                "slope": None,
+                "yardage": None,
+            }
 
         holes_played = round_.holes_played
         starting_hole = round_.starting_hole

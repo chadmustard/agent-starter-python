@@ -1,3 +1,4 @@
+import dataclasses
 import json
 from pathlib import Path
 
@@ -422,6 +423,22 @@ def test_build_payload_setup_with_course(course):
     assert payload["tee"] is None
     assert payload["holes"] == []
     assert payload["summary"] is None
+    json.dumps(payload)
+
+
+def test_build_payload_round_without_tee_data_uses_spoken_tee_name(course):
+    sparse = dataclasses.replace(course, tees=[])
+    round_ = Round.create(sparse, "Blue", None, 18, 1)
+
+    payload = build_payload("in_progress", sparse, round_)
+
+    assert payload["tee"] == {
+        "name": "Blue",
+        "gender": None,
+        "course_rating": None,
+        "slope": None,
+        "yardage": None,
+    }
     json.dumps(payload)
 
 

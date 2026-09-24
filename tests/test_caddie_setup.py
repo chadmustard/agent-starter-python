@@ -167,6 +167,8 @@ async def test_start_round_without_tee_data(
     assert setup_data.round.tee is None
     assert setup_data.round.tee_name == "Blue"
     assert publisher.last["status"] == "in_progress"
+    assert publisher.last["tee"]["name"] == "Blue"
+    assert publisher.last["tee"]["gender"] is None
 
 
 # --- LLM behavior ---------------------------------------------------------------
