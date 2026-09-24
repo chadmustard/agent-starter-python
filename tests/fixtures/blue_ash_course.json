@@ -1,0 +1,781 @@
+{
+    "id": "283935aa-424d-42c4-8613-8b7b4e739cf1",
+    "course_name": "Blue Ash Golf Course",
+    "club_name": "Blue Ash Golf Course",
+    "city": "Blue Ash",
+    "state": "OH",
+    "lat": 39.24235889887,
+    "lng": -84.4029436096045,
+    "type": "Public/Municipal",
+    "par": 72,
+    "holes": 18,
+    "yardage": 6657,
+    "timezone": "America/New_York",
+    "architect": null,
+    "year_built": 1979,
+    "description": null,
+    "description_source": null,
+    "fairway_grass": null,
+    "green_grass": null,
+    "phone": "(513) 686-1280",
+    "website": "http://blueashgolfcourse.com",
+    "address": "4040 Cooper Road",
+    "postal_code": "45241",
+    "facilities": {
+        "lessons": true,
+        "pro_shop": null,
+        "restaurant": true,
+        "club_rental": null,
+        "driving_range": null,
+        "putting_green": null
+    },
+    "ratings": null,
+    "sources": null,
+    "tees": [
+        {
+            "tee_key": "black-male",
+            "tee_name": "Black",
+            "tee_color": "black",
+            "gender": "Male",
+            "course_rating": 72.4,
+            "slope": 133,
+            "par": 72,
+            "yardage": 6657
+        },
+        {
+            "tee_key": "gold-male",
+            "tee_name": "Gold",
+            "tee_color": "gold",
+            "gender": "Male",
+            "course_rating": 71,
+            "slope": 129,
+            "par": 72,
+            "yardage": 6340
+        },
+        {
+            "tee_key": "white-female",
+            "tee_name": "White",
+            "tee_color": "white",
+            "gender": "Female",
+            "course_rating": 74.6,
+            "slope": 135,
+            "par": 72,
+            "yardage": 5957
+        },
+        {
+            "tee_key": "white-male",
+            "tee_name": "White",
+            "tee_color": "white",
+            "gender": "Male",
+            "course_rating": 69.1,
+            "slope": 126,
+            "par": 72,
+            "yardage": 5957
+        },
+        {
+            "tee_key": "green-female",
+            "tee_name": "Green",
+            "tee_color": "green",
+            "gender": "Female",
+            "course_rating": 69.1,
+            "slope": 119,
+            "par": 72,
+            "yardage": 5010
+        },
+        {
+            "tee_key": "green-male",
+            "tee_name": "Green",
+            "tee_color": "green",
+            "gender": "Male",
+            "course_rating": 64.1,
+            "slope": 114,
+            "par": 72,
+            "yardage": 5010
+        }
+    ],
+    "holes_data": [
+        {
+            "number": 1,
+            "par": 4,
+            "handicap_index": 1,
+            "yardages": {
+                "gold": 374,
+                "black": 380,
+                "green": 313,
+                "white": 355
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 2,
+            "par": 3,
+            "handicap_index": 7,
+            "yardages": {
+                "gold": 175,
+                "black": 192,
+                "green": 100,
+                "white": 159
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 3,
+            "par": 4,
+            "handicap_index": 5,
+            "yardages": {
+                "gold": 378,
+                "black": 391,
+                "green": 276,
+                "white": 362
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 4,
+            "par": 3,
+            "handicap_index": 11,
+            "yardages": {
+                "gold": 172,
+                "black": 193,
+                "green": 112,
+                "white": 131
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 5,
+            "par": 5,
+            "handicap_index": 15,
+            "yardages": {
+                "gold": 499,
+                "black": 514,
+                "green": 419,
+                "white": 482
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 6,
+            "par": 4,
+            "handicap_index": 3,
+            "yardages": {
+                "gold": 407,
+                "black": 435,
+                "green": 342,
+                "white": 385
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 7,
+            "par": 4,
+            "handicap_index": 13,
+            "yardages": {
+                "gold": 354,
+                "black": 367,
+                "green": 290,
+                "white": 339
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 8,
+            "par": 5,
+            "handicap_index": 17,
+            "yardages": {
+                "gold": 505,
+                "black": 521,
+                "green": 411,
+                "white": 485
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 9,
+            "par": 4,
+            "handicap_index": 9,
+            "yardages": {
+                "gold": 349,
+                "black": 366,
+                "green": 273,
+                "white": 333
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 10,
+            "par": 5,
+            "handicap_index": 16,
+            "yardages": {
+                "gold": 511,
+                "black": 528,
+                "green": 314,
+                "white": 481
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 11,
+            "par": 3,
+            "handicap_index": 8,
+            "yardages": {
+                "gold": 168,
+                "black": 190,
+                "green": 91,
+                "white": 143
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 12,
+            "par": 4,
+            "handicap_index": 4,
+            "yardages": {
+                "gold": 376,
+                "black": 392,
+                "green": 319,
+                "white": 355
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 13,
+            "par": 3,
+            "handicap_index": 18,
+            "yardages": {
+                "gold": 147,
+                "black": 168,
+                "green": 125,
+                "white": 132
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 14,
+            "par": 4,
+            "handicap_index": 6,
+            "yardages": {
+                "gold": 352,
+                "black": 370,
+                "green": 302,
+                "white": 315
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 15,
+            "par": 4,
+            "handicap_index": 10,
+            "yardages": {
+                "gold": 380,
+                "black": 385,
+                "green": 247,
+                "white": 368
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 16,
+            "par": 4,
+            "handicap_index": 2,
+            "yardages": {
+                "gold": 356,
+                "black": 378,
+                "green": 315,
+                "white": 339
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 17,
+            "par": 4,
+            "handicap_index": 12,
+            "yardages": {
+                "gold": 334,
+                "black": 362,
+                "green": 284,
+                "white": 304
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        },
+        {
+            "number": 18,
+            "par": 5,
+            "handicap_index": 14,
+            "yardages": {
+                "gold": 503,
+                "black": 525,
+                "green": 425,
+                "white": 480
+            },
+            "tee_coords": null,
+            "green": {
+                "center": null,
+                "front": null,
+                "back": null
+            },
+            "green_polygon": null,
+            "fairway_polygon": null,
+            "green_depth_yards": null,
+            "green_width_yards": null,
+            "landing_zone": null,
+            "dogleg": null,
+            "elevation": null,
+            "plays_like_yards": null,
+            "hazards": []
+        }
+    ],
+    "climate": {
+        "season_start": 3,
+        "season_end": 11,
+        "best_months": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+        ],
+        "monthly": [
+            {
+                "month": 1,
+                "avg_low_f": 22,
+                "avg_high_f": 39,
+                "avg_temp_f": 30,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 2,
+                "avg_low_f": 24,
+                "avg_high_f": 43,
+                "avg_temp_f": 33,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 3,
+                "avg_low_f": 31,
+                "avg_high_f": 54,
+                "avg_temp_f": 42,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 4,
+                "avg_low_f": 41,
+                "avg_high_f": 66,
+                "avg_temp_f": 53,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 5,
+                "avg_low_f": 51,
+                "avg_high_f": 76,
+                "avg_temp_f": 64,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 6,
+                "avg_low_f": 61,
+                "avg_high_f": 84,
+                "avg_temp_f": 72,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 7,
+                "avg_low_f": 64,
+                "avg_high_f": 87,
+                "avg_temp_f": 75,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 8,
+                "avg_low_f": 63,
+                "avg_high_f": 86,
+                "avg_temp_f": 75,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 9,
+                "avg_low_f": 54,
+                "avg_high_f": 80,
+                "avg_temp_f": 67,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 10,
+                "avg_low_f": 42,
+                "avg_high_f": 68,
+                "avg_temp_f": 55,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 11,
+                "avg_low_f": 33,
+                "avg_high_f": 55,
+                "avg_temp_f": 44,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            },
+            {
+                "month": 12,
+                "avg_low_f": 26,
+                "avg_high_f": 43,
+                "avg_temp_f": 35,
+                "avg_wind_mph": 0,
+                "avg_precipitation_in": 0
+            }
+        ],
+        "source": {
+            "name": "Open-Meteo",
+            "url": "https://open-meteo.com/",
+            "title": "Climate normals (with NOAA 1991-2020 Climate Normals, public domain, where available)",
+            "license": "CC BY 4.0"
+        }
+    },
+    "nearby": {
+        "hotels": [
+            {
+                "name": "Extended Stay America",
+                "lat": 39.2283518,
+                "lng": -84.3922374,
+                "distance_miles": 1.1,
+                "book_url": "https://api.opengolfapi.org/api/v1/book/h/eyJ0IjoiaCIsImQiOiIzOS4yMjgzNTE4LC04NC4zOTIyMzc0IiwibiI6ImJvb2tpbmciLCJjIjoiMjgzOTM1YWEtNDI0ZC00MmM0LTg2MTMtOGI3YjRlNzM5Y2YxIiwicCI6eyJuYW1lIjoiRXh0ZW5kZWQgU3RheSBBbWVyaWNhIn19.68pPXdcH_NGBrO-cL4Jf7A"
+            },
+            {
+                "name": "Wingate by Wyndham Cincinnati / Blue Ash",
+                "lat": 39.252596,
+                "lng": -84.3880831,
+                "distance_miles": 1.1,
+                "book_url": "https://api.opengolfapi.org/api/v1/book/h/eyJ0IjoiaCIsImQiOiIzOS4yNTI1OTYsLTg0LjM4ODA4MzEiLCJuIjoiYm9va2luZyIsImMiOiIyODM5MzVhYS00MjRkLTQyYzQtODYxMy04YjdiNGU3MzljZjEiLCJwIjp7Im5hbWUiOiJXaW5nYXRlIGJ5IFd5bmRoYW0gQ2luY2lubmF0aSAvIEJsdWUgQXNoIn19.Ypq9S0ATxYd0o_N3ihhHqA"
+            },
+            {
+                "name": "Embassy Suites by Hilton Cincinnati Northeast Blue Ash",
+                "lat": 39.2550402,
+                "lng": -84.3814693,
+                "distance_miles": 1.4,
+                "book_url": "https://api.opengolfapi.org/api/v1/book/h/eyJ0IjoiaCIsImQiOiIzOS4yNTUwNDAyLC04NC4zODE0NjkzIiwibiI6ImJvb2tpbmciLCJjIjoiMjgzOTM1YWEtNDI0ZC00MmM0LTg2MTMtOGI3YjRlNzM5Y2YxIiwicCI6eyJuYW1lIjoiRW1iYXNzeSBTdWl0ZXMgYnkgSGlsdG9uIENpbmNpbm5hdGkgTm9ydGhlYXN0IEJsdWUgQXNoIn19.Nwooe2xC4brjE0pawLzyqw"
+            },
+            {
+                "name": "Extended Stay America",
+                "lat": 39.2592242,
+                "lng": -84.379515,
+                "distance_miles": 1.7,
+                "book_url": "https://api.opengolfapi.org/api/v1/book/h/eyJ0IjoiaCIsImQiOiIzOS4yNTkyMjQyLC04NC4zNzk1MTUiLCJuIjoiYm9va2luZyIsImMiOiIyODM5MzVhYS00MjRkLTQyYzQtODYxMy04YjdiNGU3MzljZjEiLCJwIjp7Im5hbWUiOiJFeHRlbmRlZCBTdGF5IEFtZXJpY2EifX0.fZPRqzHWijZFBLzut92Ikg"
+            },
+            {
+                "name": "MainStay Suites Cincinnati Blue Ash",
+                "lat": 39.2564178,
+                "lng": -84.3766395,
+                "distance_miles": 1.7,
+                "book_url": "https://api.opengolfapi.org/api/v1/book/h/eyJ0IjoiaCIsImQiOiIzOS4yNTY0MTc4LC04NC4zNzY2Mzk1IiwibiI6ImJvb2tpbmciLCJjIjoiMjgzOTM1YWEtNDI0ZC00MmM0LTg2MTMtOGI3YjRlNzM5Y2YxIiwicCI6eyJuYW1lIjoiTWFpblN0YXkgU3VpdGVzIENpbmNpbm5hdGkgQmx1ZSBBc2gifX0.n88TGCauQcUaqTG0Rxz8Nw"
+            }
+        ],
+        "restaurants": [],
+        "courses": [],
+        "other": [
+            {
+                "name": "Cincinnati Municipal Airport Lunken Field (LUK)",
+                "lat": 39.102357,
+                "lng": -84.418945,
+                "distance_miles": 9.7
+            },
+            {
+                "name": "Cincinnati Northern Kentucky International Airport (CVG)",
+                "lat": 39.048801,
+                "lng": -84.667801,
+                "distance_miles": 19.5
+            },
+            {
+                "name": "James M. Cox Dayton International Airport (DAY)",
+                "lat": 39.902401,
+                "lng": -84.219398,
+                "distance_miles": 46.6
+            }
+        ]
+    },
+    "pricing": null,
+    "booking_link": "https://api.opengolfapi.org/api/v1/book/t/eyJ0IjoidCIsImQiOiJCbHVlIEFzaCBHb2xmIENvdXJzZXxPSCIsIm4iOiJnb2xmbm93IiwiYyI6IjI4MzkzNWFhLTQyNGQtNDJjNC04NjEzLThiN2I0ZTczOWNmMSJ9.4AtRgFj44S0iCdB77PVQbw",
+    "insights": {
+        "hardest_hole": {
+            "number": 1,
+            "handicap": 1,
+            "par": 4,
+            "yardage": 380
+        },
+        "easiest_hole": {
+            "number": 13,
+            "handicap": 18,
+            "par": 3,
+            "yardage": 168
+        },
+        "longest_hole": {
+            "number": 10,
+            "par": 5,
+            "yardage": 528
+        },
+        "shortest_hole": {
+            "number": 13,
+            "par": 3,
+            "yardage": 168
+        },
+        "par_3_count": 4,
+        "par_4_count": 10,
+        "par_5_count": 4,
+        "total_par": 72,
+        "hazard_count": 174,
+        "water_holes": 0,
+        "bunker_count": 56,
+        "tags": [
+            "public",
+            "municipal",
+            "dining"
+        ]
+    }
+}

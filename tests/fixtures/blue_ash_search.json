@@ -1,0 +1,18 @@
+{
+    "courses": [
+        {
+            "id": "283935aa-424d-42c4-8613-8b7b4e739cf1",
+            "course_name": "Blue Ash Golf Course",
+            "city": "Blue Ash",
+            "state": "OH",
+            "country_iso": "US",
+            "lat": 39.24235889887,
+            "lng": -84.4029436096045,
+            "type": "Public/Municipal",
+            "par": 72,
+            "holes": 18,
+            "completeness": 0
+        }
+    ],
+    "total": 1
+}
