@@ -36,6 +36,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "llm: runs an AgentSession against LiveKit Inference (needs .env.local credentials); skip with -m \"not llm\"",
+]
 
 [tool.ruff]
 line-length = 88

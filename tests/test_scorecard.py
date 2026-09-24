@@ -398,6 +398,66 @@ def test_score_name(strokes, par, expected):
 
 # --- build_payload --------------------------------------------------------------
 
+# The version-1 frontend contract: every payload has exactly these keys.
+PAYLOAD_KEYS = {
+    "version",
+    "status",
+    "course",
+    "tee",
+    "holes_played",
+    "starting_hole",
+    "holes",
+    "summary",
+}
+COURSE_KEYS = {"id", "name", "city", "state"}
+TEE_KEYS = {"name", "gender", "course_rating", "slope", "yardage"}
+HOLE_KEYS = {
+    "number",
+    "par",
+    "yardage",
+    "handicap",
+    "strokes",
+    "putts",
+    "fairway",
+    "green",
+    "score_to_par",
+}
+SUMMARY_KEYS = {
+    "holes_completed",
+    "total_strokes",
+    "total_par",
+    "score_to_par",
+    "total_putts",
+    "fairways_hit",
+    "fairways_possible",
+    "greens_hit",
+    "greens_possible",
+    "fairway_misses",
+    "green_misses",
+    "front_nine",
+    "back_nine",
+}
+NINE_KEYS = {"strokes", "par", "putts"}
+
+
+def assert_payload_keys(payload: dict) -> None:
+    """Assert the payload has exactly the version-1 keys at every level."""
+    assert set(payload) == PAYLOAD_KEYS
+    if payload["course"] is not None:
+        assert set(payload["course"]) == COURSE_KEYS
+    if payload["tee"] is not None:
+        assert set(payload["tee"]) == TEE_KEYS
+    for hole in payload["holes"]:
+        assert set(hole) == HOLE_KEYS
+    summary = payload["summary"]
+    if summary is not None:
+        assert set(summary) == SUMMARY_KEYS
+        assert set(summary["fairway_misses"]) == set(MISS_DIRECTIONS)
+        assert set(summary["green_misses"]) == set(MISS_DIRECTIONS)
+        for nine in ("front_nine", "back_nine"):
+            if summary[nine] is not None:
+                assert set(summary[nine]) == NINE_KEYS
+
 
 def test_build_payload_setup_no_course():
     payload = build_payload("setup", None, None)
@@ -409,6 +469,7 @@ def test_build_payload_setup_no_course():
     assert payload["starting_hole"] is None
     assert payload["holes"] == []
     assert payload["summary"] is None
+    assert_payload_keys(payload)
     json.dumps(payload)
 
 
@@ -423,6 +484,7 @@ def test_build_payload_setup_with_course(course):
     assert payload["tee"] is None
     assert payload["holes"] == []
     assert payload["summary"] is None
+    assert_payload_keys(payload)
     json.dumps(payload)
 
 
@@ -439,6 +501,7 @@ def test_build_payload_round_without_tee_data_uses_spoken_tee_name(course):
         "slope": None,
         "yardage": None,
     }
+    assert_payload_keys(payload)
     json.dumps(payload)
 
 
@@ -475,4 +538,18 @@ def test_build_payload_in_progress(course, gold_tee):
     assert payload["holes_played"] == 9
     assert payload["starting_hole"] == 1
     assert payload["summary"] is not None
+    assert_payload_keys(payload)
+    json.dumps(payload)
+
+
+def test_build_payload_eighteen_holes_has_exact_keys(course, gold_tee):
+    round_ = Round.create(course, "Gold", gold_tee, 18, 10)
+    round_.record_hole(10, strokes=5, putts=2, green="hit", fairway="hit")
+    round_.record_hole(1, strokes=5, putts=2, green="short", fairway="left")
+
+    payload = build_payload("in_progress", course, round_)
+
+    assert payload["summary"]["front_nine"] is not None
+    assert payload["summary"]["back_nine"] is not None
+    assert_payload_keys(payload)
     json.dumps(payload)

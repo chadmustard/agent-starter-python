@@ -216,6 +216,7 @@ async def _confirm_turn(session: AgentSession):
     return result
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_greets_and_asks_for_course(setup_data) -> None:
     async with (
@@ -239,6 +240,7 @@ async def test_greets_and_asks_for_course(setup_data) -> None:
         result.expect.no_more_events()
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_searches_and_asks_to_confirm_course(setup_data, fake_golf_api) -> None:
     async with (
@@ -265,6 +267,7 @@ async def test_searches_and_asks_to_confirm_course(setup_data, fake_golf_api) ->
     assert setup_data.course is None
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_confirmed_course_asks_for_tees(setup_data, publisher) -> None:
     async with (
@@ -295,6 +298,7 @@ async def test_confirmed_course_asks_for_tees(setup_data, publisher) -> None:
     assert publisher.last["status"] == "setup"
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_ambiguous_tee_asks_mens_or_womens(setup_data) -> None:
     async with (
@@ -337,6 +341,7 @@ async def test_ambiguous_tee_asks_mens_or_womens(setup_data) -> None:
     assert isinstance(session.current_agent, RoundSetupAgent)
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_hands_off_to_hole_by_hole(
     setup_data, blue_ash_course, publisher
@@ -361,6 +366,7 @@ async def test_hands_off_to_hole_by_hole(
     assert publisher.last["status"] == "in_progress"
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_course_not_found(setup_data, fake_golf_api) -> None:
     fake_golf_api.return_no_results()

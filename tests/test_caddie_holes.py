@@ -84,6 +84,7 @@ async def _start(session: AgentSession, data: CaddieData) -> None:
     await session.start(HoleByHoleAgent(data.round), capture_run=True)
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_records_hole_with_full_detail(make_caddie_data, publisher) -> None:
     data = make_caddie_data(holes_played=18, starting_hole=1)
@@ -130,6 +131,7 @@ async def test_records_hole_with_full_detail(make_caddie_data, publisher) -> Non
     assert publisher.last["status"] == "in_progress"
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_converts_golf_terms_and_skips_fairway_on_par_three(
     make_caddie_data,
@@ -170,6 +172,7 @@ async def test_converts_golf_terms_and_skips_fairway_on_par_three(
     assert data.round.hole(2).par == 3
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_asks_for_missing_details_before_recording(make_caddie_data) -> None:
     data = make_caddie_data(holes_played=18, starting_hole=1)
@@ -198,6 +201,7 @@ async def test_asks_for_missing_details_before_recording(make_caddie_data) -> No
     assert 1 not in data.round.scores
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_corrects_an_earlier_hole(make_caddie_data) -> None:
     data = make_caddie_data(holes_played=18, starting_hole=1)
@@ -250,6 +254,7 @@ _FRONT_EIGHT = {
 }
 
 
+@pytest.mark.llm
 @pytest.mark.asyncio
 async def test_finishes_round_after_confirmation(make_caddie_data, publisher) -> None:
     data = make_caddie_data(holes_played=9, starting_hole=1)

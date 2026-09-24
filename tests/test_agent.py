@@ -10,18 +10,21 @@
 # from livekit.agents import AgentSession, inference, llm
 #
 # from caddie import CaddieData, RoundSetupAgent
+# from golf_api import OpenGolfAPI
 #
 #
 # def _judge_llm() -> llm.LLM:
 #     return inference.LLM(model="openai/gpt-4.1-mini")
 #
 #
+# @pytest.mark.llm
 # @pytest.mark.asyncio
 # async def test_greets_and_asks_for_course() -> None:
 #     """Evaluation of the setup agent's opening greeting."""
+#     golf_api = OpenGolfAPI()
 #     async with (
 #         _judge_llm() as judge_llm,
-#         AgentSession[CaddieData](userdata=CaddieData(golf_api=...)) as session,
+#         AgentSession[CaddieData](userdata=CaddieData(golf_api=golf_api)) as session,
 #     ):
 #         result = await session.start(RoundSetupAgent(), capture_run=True)
 #
@@ -42,6 +45,8 @@
 #
 #         # Ensures there are no function calls or other unexpected events
 #         result.expect.no_more_events()
+#
+#     await golf_api.aclose()
 
 
 def test_agent_module_imports_and_exposes_server() -> None:

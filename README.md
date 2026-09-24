@@ -162,6 +162,8 @@ The `Simulations` workflow in `.github/workflows/simulations.yml` runs the same 
 
 For turn-level checks that don't need a live session, the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/) runs your agent in-process under `pytest`. A commented-out example lives in [`tests/test_agent.py`](tests/test_agent.py).
 
+Tests that talk to an LLM are marked `llm`; run everything else, with no credentials or network, with `uv run pytest -m "not llm"`.
+
 ## Using this template repo for your own project
 
 Once you've started your own project based on this repo, you should:
