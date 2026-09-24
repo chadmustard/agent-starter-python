@@ -70,8 +70,13 @@ async def my_agent(ctx: JobContext):
         expressive=True,
     )
 
+    # Join the room and connect to the user. Connecting before session.start()
+    # makes the local participant available, so the scorecard RPC is
+    # registered before the frontend could first call it.
+    await ctx.connect()
+    publisher.register_rpc()
+
     # Start the session, which initializes the voice pipeline and warms up the models.
-    # This also connects to the room (see JobContext.connect below).
     await session.start(
         agent=RoundSetupAgent(),
         room=ctx.room,
@@ -84,11 +89,8 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # The room is connected once session.start() returns, so the local
-    # participant is available: register the scorecard RPC and push the
-    # initial (empty) scorecard so the frontend has something to render
-    # right away, even before the golfer says anything.
-    publisher.register_rpc()
+    # Push the initial (empty) scorecard so the frontend has something to
+    # render right away, even before the golfer says anything.
     await session.userdata.push()
 
     # Play a "thinking" sound automatically while tool calls are in flight, to
@@ -112,12 +114,6 @@ async def my_agent(ctx: JobContext):
     # )
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
-
-    # Join the room and connect to the user. session.start() above already
-    # connects the room (it awaits JobContext.connect() internally whenever a
-    # room is passed to it), so this is a no-op; it's kept for clarity and in
-    # case session.start() is ever called without a room.
-    await ctx.connect()
 
 
 if __name__ == "__main__":

@@ -50,3 +50,36 @@ def test_agent_module_imports_and_exposes_server() -> None:
     import agent
 
     assert agent.server is not None
+
+
+def test_entrypoint_registers_rpc_before_the_session_starts() -> None:
+    """The scorecard RPC must be registered as soon as the room is connected,
+    before session.start(), so a frontend that joins right away can call it.
+    """
+    import ast
+    import inspect
+
+    import agent
+
+    tree = ast.parse(inspect.getsource(agent))
+    entrypoint = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "my_agent"
+    )
+
+    def first_line(call: str) -> int:
+        lines = [
+            node.lineno
+            for node in ast.walk(entrypoint)
+            if isinstance(node, ast.Call) and ast.unparse(node.func) == call
+        ]
+        assert lines, f"{call}() is not called in my_agent"
+        return min(lines)
+
+    connect = first_line("ctx.connect")
+    register = first_line("publisher.register_rpc")
+    start = first_line("session.start")
+    push = first_line("session.userdata.push")
+
+    assert connect < register < start < push
