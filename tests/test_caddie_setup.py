@@ -207,6 +207,16 @@ async def test_start_round_without_tee_data(
     assert publisher.last["tee"]["gender"] is None
 
 
+def test_both_agents_share_the_scope_rules(make_caddie_data) -> None:
+    round_ = make_caddie_data().round
+    for agent in (RoundSetupAgent(), HoleByHoleAgent(round_)):
+        assert "# Scope and guardrails" in agent.instructions
+        assert "only help the golfer set up and record their scorecard" in (
+            agent.instructions
+        )
+        assert "state names in full" in agent.instructions
+
+
 # --- LLM behavior ---------------------------------------------------------------
 
 
@@ -278,6 +288,48 @@ async def test_greets_and_asks_for_course(setup_data) -> None:
 
 @pytest.mark.llm
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("user_input", "no_answer"),
+    [
+        (
+            "What's the weather going to be tomorrow?",
+            "The reply contains no weather forecast or weather information.",
+        ),
+        (
+            "Who won the Masters in 1997?",
+            "The reply does not name the winner of the 1997 Masters.",
+        ),
+    ],
+)
+async def test_off_topic_request_returns_to_the_course(
+    setup_data, user_input, no_answer
+) -> None:
+    async with (
+        _judge_llm() as judge_llm,
+        AgentSession[CaddieData](userdata=setup_data) as session,
+    ):
+        await _start(session)
+
+        result = await session.run(user_input=user_input)
+
+        message = result.expect.next_event().is_message(role="assistant")
+        await message.judge(
+            judge_llm,
+            intent=(
+                "Politely says it can only help with the golfer's scorecard and "
+                f"asks which golf course the golfer played. {no_answer}"
+            ),
+        )
+        result.expect.no_more_events()
+
+    text = message.event().item.text_content.lower()
+    assert "tool" not in text
+    assert "function" not in text
+    assert setup_data.course is None
+
+
+@pytest.mark.llm
+@pytest.mark.asyncio
 async def test_searches_and_asks_to_confirm_course(setup_data, fake_golf_api) -> None:
     async with (
         _judge_llm() as judge_llm,
@@ -287,17 +339,16 @@ async def test_searches_and_asks_to_confirm_course(setup_data, fake_golf_api) ->
 
         result = await _search_turn(session)
 
-        await (
-            result.expect[-1]
-            .is_message(role="assistant")
-            .judge(
-                judge_llm,
-                intent=(
-                    "Asks the golfer to confirm that the course they played is "
-                    "Blue Ash Golf Course in Blue Ash, Ohio."
-                ),
-            )
+        message = result.expect[-1].is_message(role="assistant")
+        await message.judge(
+            judge_llm,
+            intent=(
+                "Asks the golfer to confirm that the course they played is "
+                "Blue Ash Golf Course in Blue Ash, Ohio."
+            ),
         )
+        # State names are spoken in full, never as two-letter codes.
+        assert "OH" not in message.event().item.text_content
 
     assert fake_golf_api.calls[0][0] == "search_courses"
     assert setup_data.course is None

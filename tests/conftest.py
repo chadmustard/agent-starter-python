@@ -5,6 +5,7 @@ and published scorecard payloads are captured in memory.
 """
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,12 @@ from scorecard import Round
 
 # LLM tests call LiveKit Inference with the project credentials.
 load_dotenv(Path(__file__).parent.parent / ".env.local")
+# Building an agent constructs its inference.LLM, which needs credentials but
+# makes no request. Placeholders let `pytest -m "not llm"` run without any;
+# they never override real ones.
+for _name in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"):
+    if not os.environ.get(_name):
+        os.environ[_name] = "unit-test-placeholder"
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

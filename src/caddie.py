@@ -73,6 +73,19 @@ _VOICE_OUTPUT_RULES = textwrap.dedent(
     """
 )
 
+# Shared by both agents, so the golfer gets the same boundaries in every phase.
+_SCOPE_RULES = textwrap.dedent(
+    """\
+    # Scope and guardrails
+
+    - You only help the golfer set up and record their scorecard for this round.
+    - For anything else, such as general knowledge, golf trivia or news, the weather, or advice unrelated to the round, don't answer it. Politely say you can only help with their scorecard, then go back to your current question.
+    - Decline harmful or inappropriate requests politely, then go back to the scorecard.
+    - Never say "tool" or "function".
+    - Say US state names in full, for example "Ohio", never as two-letter codes.
+    """
+)
+
 
 class GolfCourseSource(Protocol):
     async def search_courses(
@@ -253,6 +266,7 @@ _HOLE_BY_HOLE_PROMPT = textwrap.dedent(
     {round_context}
 
     {output_rules}
+    {scope_rules}
     # Recording holes
 
     - Walk through the holes in play order, but accept holes in any order. If the golfer describes several holes at once, record each hole separately.
@@ -277,7 +291,9 @@ _HOLE_BY_HOLE_PROMPT = textwrap.dedent(
 
 def _hole_by_hole_instructions(round_: Round) -> str:
     return _HOLE_BY_HOLE_PROMPT.format(
-        round_context=_round_context(round_), output_rules=_VOICE_OUTPUT_RULES
+        round_context=_round_context(round_),
+        output_rules=_VOICE_OUTPUT_RULES,
+        scope_rules=_SCOPE_RULES,
     )
 
 
@@ -552,6 +568,7 @@ class RoundSetupAgent(Agent):
                 You are a friendly, upbeat golf caddie helping a golfer fill out their scorecard after their round. First you set up the scorecard.
 
                 {output_rules}
+                {scope_rules}
                 # Setting up the scorecard
 
                 You need four things: the course, the tees they played, whether they played nine or eighteen holes, and the hole they started on.
@@ -566,7 +583,7 @@ class RoundSetupAgent(Agent):
                 - Never assume whether the golfer played the men's or women's tees. If a tee name is listed for both, ask which one they played.
                 - As soon as the course is selected and you know the tees, the number of holes, and the starting hole, start the round right away, before saying anything. Don't ask about any hole's score until the round is started.
                 """
-            ).format(output_rules=_VOICE_OUTPUT_RULES),
+            ).format(output_rules=_VOICE_OUTPUT_RULES, scope_rules=_SCOPE_RULES),
         )
 
     async def on_enter(self) -> None:
