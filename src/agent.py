@@ -6,9 +6,14 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    AudioConfig,
+    BackgroundAudioPlayer,
+    BuiltinAudioClip,
     JobContext,
+    RunContext,
     TurnHandlingOptions,
     cli,
+    function_tool,
     inference,
     room_io,
 )
@@ -36,7 +41,14 @@ class Assistant(Agent):
             #    llm=openai.realtime.GPTLiveModel(voice="marin"),
             instructions=textwrap.dedent(
                 """\
-                You are a friendly, reliable voice assistant that answers questions, explains topics, and completes tasks with available tools.
+                You are a friendly, reliable voice assistant that completes tasks and answers questions using only your available tools.
+
+                # Closed system
+
+                - You are a closed system: you may only state facts and take actions that your available tools provide. Never answer from your own general knowledge, even if you're confident you know the answer.
+                - Before answering a factual question or taking an action, check whether a tool covers it. If no tool covers it, tell the user you're not able to help with that, rather than guessing or answering anyway.
+                - Never use the words "tool" or "function" when talking to the user; these are internal implementation details. Speak only in terms of what you can or can't help with.
+                - Small talk, greetings, and clarifying questions about the conversation itself are not subject to this rule.
 
                 # Output rules
 
@@ -71,22 +83,19 @@ class Assistant(Agent):
             ),
         )
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def lookup_weather(self, context: RunContext, location: str):
+        """Use this tool to look up current weather information in the given location.
+
+        If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
+
+        Args:
+            location: The location to look up weather information for (e.g. city name)
+        """
+
+        logger.info(f"Looking up weather for {location}")
+
+        return "sunny with a temperature of 70 degrees."
 
 
 server = AgentServer()
@@ -143,6 +152,17 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
+
+    # Play a "thinking" sound automatically while tool calls are in flight, to
+    # make waits feel more natural.
+    # See more at https://docs.livekit.io/agents/multimodality/audio/background-audio/
+    background_audio = BackgroundAudioPlayer(
+        thinking_sound=[
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.8),
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.7),
+        ],
+    )
+    await background_audio.start(room=ctx.room, agent_session=session)
 
     # # Add a virtual avatar to the session, if desired
     # # For other providers, see https://docs.livekit.io/agents/models/avatar/
