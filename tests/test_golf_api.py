@@ -1,3 +1,4 @@
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -46,6 +47,20 @@ def test_parse_search():
     ]
 
 
+def test_parse_search_skips_entries_without_id_or_name():
+    payload = {
+        "courses": [
+            {"id": None, "course_name": "No Id Golf Course"},
+            {"course_name": "Missing Id Golf Course"},
+            {"id": "no-name", "course_name": None},
+            {"id": "blank-name", "course_name": ""},
+            *SEARCH_FIXTURE["courses"],
+        ]
+    }
+
+    assert parse_search(payload) == parse_search(SEARCH_FIXTURE)
+
+
 # --- parse_course ------------------------------------------------------------
 
 
@@ -90,6 +105,35 @@ def test_parse_course_zero_handicap_index_is_none():
     course = parse_course(payload)
 
     assert course.hole_info[0].handicap is None
+
+
+def test_parse_course_without_a_name_raises_golf_api_error():
+    with pytest.raises(GolfAPIError):
+        parse_course({"id": "x", "course_name": None})
+    with pytest.raises(GolfAPIError):
+        parse_course({"id": "x"})
+
+
+def test_parse_course_without_an_id_raises_golf_api_error():
+    with pytest.raises(GolfAPIError):
+        parse_course({"course_name": "Tiny"})
+
+
+def test_parse_course_skips_tees_without_a_name():
+    payload = {
+        "id": "x",
+        "course_name": "Tiny",
+        "tees": [
+            {"tee_name": None, "gender": "Male", "yardage": 6000},
+            {"gender": "Female", "yardage": 5000},
+            {"tee_name": "", "gender": "Male"},
+            {"tee_name": "Blue", "gender": "Male", "yardage": 6200},
+        ],
+    }
+
+    course = parse_course(payload)
+
+    assert [tee.name for tee in course.tees] == ["Blue"]
 
 
 # --- core_course_name ---------------------------------------------------------
@@ -171,6 +215,44 @@ async def test_search_courses_falls_back_to_core_name():
 
     assert [c["q"] for c in calls] == ["blue ash golf club", "blue ash"]
     assert results == parse_search(SEARCH_FIXTURE)
+
+
+@pytest.mark.asyncio
+async def test_search_courses_does_not_repeat_a_query_that_is_already_core():
+    calls = []
+
+    async def handler(request):
+        calls.append(dict(request.query))
+        return web.json_response({"courses": [], "total": 0})
+
+    app = web.Application()
+    app.router.add_get("/courses/search", handler)
+
+    async with running_api(app) as api:
+        results = await api.search_courses("Blue Ash")
+
+    assert [c["q"] for c in calls] == ["Blue Ash"]
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_courses_timeout_raises_golf_api_error():
+    async def handler(request):
+        await asyncio.sleep(1)
+        return web.json_response(SEARCH_FIXTURE)
+
+    app = web.Application()
+    app.router.add_get("/courses/search", handler)
+
+    server = TestServer(app)
+    await server.start_server()
+    api = OpenGolfAPI(base_url=str(server.make_url("")).rstrip("/"), timeout=0.1)
+    try:
+        with pytest.raises(GolfAPIError, match="timed out"):
+            await api.search_courses("blue ash")
+    finally:
+        await api.aclose()
+        await server.close()
 
 
 @pytest.mark.asyncio

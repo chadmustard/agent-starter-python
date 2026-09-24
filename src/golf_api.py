@@ -4,6 +4,7 @@ helpers that the scorecard agents build on.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass
@@ -77,6 +78,9 @@ class CourseDetail:
 
 
 def parse_search(payload: dict) -> list[CourseSummary]:
+    """Entries with no id or no course name are skipped: they can't be
+    selected or read back to the golfer.
+    """
     courses = payload.get("courses") or []
     return [
         CourseSummary(
@@ -88,6 +92,7 @@ def parse_search(payload: dict) -> list[CourseSummary]:
             holes=course.get("holes"),
         )
         for course in courses
+        if course.get("id") and course.get("course_name")
     ]
 
 
@@ -96,6 +101,12 @@ def _normalize_gender(gender: str | None) -> str | None:
 
 
 def parse_course(payload: dict) -> CourseDetail:
+    """Raises GolfAPIError when the course has no id or name. Tees with no
+    name are skipped, since the golfer can't pick them.
+    """
+    if not payload.get("id") or not payload.get("course_name"):
+        raise GolfAPIError("OpenGolfAPI returned a course with no id or name")
+
     tees_data = payload.get("tees") or []
     tees = [
         Tee(
@@ -107,6 +118,7 @@ def parse_course(payload: dict) -> CourseDetail:
             yardage=tee.get("yardage"),
         )
         for tee in tees_data
+        if tee.get("tee_name")
     ]
 
     holes_data = payload.get("holes_data") or []
@@ -223,7 +235,9 @@ class OpenGolfAPI:
                     raise GolfAPIError(
                         "OpenGolfAPI returned a non-JSON response"
                     ) from exc
-        except TimeoutError as exc:
+        # asyncio.TimeoutError, not the builtin: they are only the same class
+        # from Python 3.11 on, and this project supports 3.10.
+        except asyncio.TimeoutError as exc:
             logger.warning("OpenGolfAPI request to %s timed out", url)
             raise GolfAPIError("OpenGolfAPI request timed out") from exc
         except aiohttp.ClientError as exc:
@@ -242,7 +256,7 @@ class OpenGolfAPI:
 
         if not results:
             core = core_course_name(query)
-            if core and core != query:
+            if core and core != query.strip().lower():
                 params["q"] = core
                 payload = await self._get("/courses/search", params=params)
                 results = parse_search(payload)
