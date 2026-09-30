@@ -155,10 +155,10 @@ For advanced customization, see the [complete frontend guide](https://docs.livek
 Simulations run full multi-turn conversations between a simulated user and your agent on LiveKit Cloud, then judge each transcript. The scenarios live in [`scenarios.yaml`](scenarios.yaml). Run them locally with the [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/):
 
 ```console
-lk agent simulate --scenarios scenarios.yaml
+lk agent simulate text --scenarios scenarios.yaml
 ```
 
-The `Simulations` workflow in `.github/workflows/simulations.yml` runs the same file on every merge to `main` and on demand from the Actions tab. It runs there rather than on every pull request push because each run spends real inference. See the [simulations guide](https://docs.livekit.io/agents/start/testing/simulations/) for how to write scenarios and read results.
+The Deploy workflow runs this file in text mode on every pull request, after the dev deployment finishes. The Simulations workflow runs the same command on demand from the Actions tab. See the [simulations guide](https://docs.livekit.io/agents/start/testing/simulations/) for how to write scenarios and read results.
 
 For turn-level checks that don't need a live session, the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/) runs your agent in-process under `pytest`. A commented-out example lives in [`tests/test_agent.py`](tests/test_agent.py).
 
@@ -174,7 +174,7 @@ Once you've started your own project based on this repo, you should:
 
 ## Deploying to production
 
-This project is production-ready and includes a working `Dockerfile`. To deploy it to LiveKit Cloud or another environment, see the [deploying to production](https://docs.livekit.io/deploy/agents/) guide.
+The Deploy workflow ships pull requests to the stage agent's `dev` deployment, and ships merges to `main` to that agent's production deployment. The production agent deploy waits on the GitHub `production` environment. Add yourself as a required reviewer under Settings, Environments, or that job continues without a pause. See the [deploying to production](https://docs.livekit.io/deploy/agents/) guide for the CLI and the image build.
 
 ## Self-hosted LiveKit
 

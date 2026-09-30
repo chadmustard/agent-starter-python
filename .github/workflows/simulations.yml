@@ -1,12 +1,9 @@
-# Runs the scenarios in scenarios.yaml against your agent on LiveKit Cloud.
-# Simulations spend real inference, so this runs on merges to main and on demand
-# rather than on every pull request push. Run
-# `lk agent simulate --scenarios scenarios.yaml` locally while iterating.
+# On-demand text simulations. Pull requests run the same scenarios from
+# the Deploy workflow, after the dev deployment finishes.
+# Run `lk agent simulate text --scenarios scenarios.yaml` locally while iterating.
 name: Simulations
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -43,4 +40,4 @@ jobs:
       run: curl -sSL https://get.livekit.io/cli | bash
 
     - name: Run simulations
-      run: lk agent simulate --scenarios scenarios.yaml
+      run: lk agent simulate text --scenarios scenarios.yaml --concurrency 5

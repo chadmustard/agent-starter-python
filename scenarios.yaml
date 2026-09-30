@@ -1,7 +1,8 @@
 # Simulation scenarios for the golf scorecard caddie. Each one is a
 # conversation a simulated golfer has with your agent, judged against
-# agent_expectations. Run them with `lk agent simulate --scenarios
-# scenarios.yaml`; the Simulations workflow runs them on every merge to main.
+# agent_expectations. Run them with `lk agent simulate text --scenarios
+# scenarios.yaml`. The Deploy workflow runs them on pull requests after
+# the dev deployment finishes.
 #
 # Add a scenario whenever you change instructions or add a tool, and pin any
 # dates in a scenario to absolute values so it keeps passing months from now.
@@ -122,3 +123,27 @@ scenarios:
       the golfer's scorecard.
     tags:
       feature: guardrails
+
+  - label: Course lookup is unavailable
+    instructions: |
+      PERSONA: A golfer trying to set up their scorecard right after
+      finishing a round. Patient, but wants a straight answer if something
+      isn't working.
+      OPENING LINE: "Hi, I just played a round at Blue Ash Golf Course."
+      DO, IN ORDER:
+      1. If the caddie says it can't look up course information right now,
+         ask "Is there anything you can do?"
+      2. Once the caddie responds, say you'll try again later and end the
+         conversation.
+    agent_expectations: >
+      Does not crash, hang, or invent course details such as a par, tee, or
+      hole count. Tells the golfer it can't look up course information right
+      now (without using the words "tool" or "function") and does not
+      silently retry as if the search were still working. When asked if
+      there's anything it can do, it may suggest trying again shortly or
+      offer to note the course name for later, but never fabricates a course
+      match or proceeds to ask about tees or holes without one.
+    tags:
+      feature: setup
+    userdata:
+      golf_api_unavailable: true

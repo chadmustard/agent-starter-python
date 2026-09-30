@@ -270,3 +270,25 @@ class OpenGolfAPI:
     async def aclose(self) -> None:
         if self._owns_session and self._session is not None:
             await self._session.close()
+
+
+class FailingGolfAPI:
+    """A GolfCourseSource that always raises GolfAPIError.
+
+    Used to seed a deterministic tool-failure scenario under simulation,
+    instead of relying on the real OpenGolfAPI to fail on cue.
+    """
+
+    def __init__(self, message: str = "OpenGolfAPI request timed out") -> None:
+        self._message = message
+
+    async def search_courses(
+        self, query: str, state: str | None = None, limit: int = 5
+    ) -> list[CourseSummary]:
+        raise GolfAPIError(self._message)
+
+    async def get_course(self, course_id: str) -> CourseDetail:
+        raise GolfAPIError(self._message)
+
+    async def aclose(self) -> None:
+        return None

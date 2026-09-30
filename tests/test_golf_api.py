@@ -11,6 +11,7 @@ from aiohttp.test_utils import TestServer
 from golf_api import (
     AmbiguousTeeError,
     CourseSummary,
+    FailingGolfAPI,
     GolfAPIError,
     OpenGolfAPI,
     core_course_name,
@@ -319,3 +320,23 @@ async def test_aclose_does_not_close_injected_session():
         api = OpenGolfAPI(http_session=session)
         await api.aclose()
         assert not session.closed
+
+
+# --- FailingGolfAPI ----------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_failing_golf_api_search_courses_raises():
+    with pytest.raises(GolfAPIError):
+        await FailingGolfAPI().search_courses("Blue Ash Golf Course")
+
+
+@pytest.mark.asyncio
+async def test_failing_golf_api_get_course_raises():
+    with pytest.raises(GolfAPIError):
+        await FailingGolfAPI().get_course("283935aa-424d-42c4-8613-8b7b4e739cf1")
+
+
+@pytest.mark.asyncio
+async def test_failing_golf_api_aclose_is_a_noop():
+    await FailingGolfAPI().aclose()
