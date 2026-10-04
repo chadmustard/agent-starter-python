@@ -158,7 +158,7 @@ Simulations run full multi-turn conversations between a simulated user and your 
 lk agent simulate text --scenarios scenarios.yaml
 ```
 
-The Deploy workflow runs this file in text mode on every pull request, after the dev deployment finishes. The Simulations workflow runs the same command on demand from the Actions tab. See the [simulations guide](https://docs.livekit.io/agents/start/testing/simulations/) for how to write scenarios and read results.
+Simulations don't run in CI; run them locally when you change the agent's behavior. See the [simulations guide](https://docs.livekit.io/agents/start/testing/simulations/) for how to write scenarios and read results.
 
 For turn-level checks that don't need a live session, the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/) runs your agent in-process under `pytest`. A commented-out example lives in [`tests/test_agent.py`](tests/test_agent.py).
 
@@ -170,7 +170,7 @@ Once you've started your own project based on this repo, you should:
 
 1. **Check in your `uv.lock`**: This file is currently untracked for the template, but you should commit it to your repository for reproducible builds and proper configuration management. (The same applies to `livekit.toml`, if you run your agents in LiveKit Cloud)
 
-2. **Add your own repository secrets**: You must [add secrets](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-secrets-in-github-actions) for `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` so that the simulations can run in CI.
+2. **Add your own repository secrets**: You must [add secrets](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-secrets-in-github-actions) for `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` so that the Deploy workflow can deploy your agents.
 
 ## Deploying to production
 

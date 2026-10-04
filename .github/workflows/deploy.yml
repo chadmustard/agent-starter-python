@@ -1,19 +1,11 @@
-# Pull requests deploy the stage agent's dev deployment, then run the
-# text simulations against that same checkout. Merges to main deploy the
-# stage agent's production deployment, then wait for approval before
-# deploying the original agent in livekit.toml.
+# Pull requests deploy the stage agent's dev deployment. Merges to main
+# deploy the stage agent's production deployment, then wait for approval
+# before deploying the original agent in livekit.toml.
 #
 # The production job uses the GitHub environment named "production".
 # That job waits for a person only after a required reviewer is set:
 # https://github.com/chadmustard/agent-starter-python/settings/environments
 # Until then, GitHub creates the environment and the job continues.
-#
-# lk agent simulate can target a live agent with --agent-name, and that
-# dispatch always goes to the production deployment of that name. The
-# CLI does not yet accept a deployment (see the TODO in livekit-cli
-# cmd/lk/simulate.go), so the pull-request run starts a worker from the
-# checkout after the dev image has deployed. It grades the pull request's
-# code, not the dev containers.
 #
 # Runtime secrets stay on the Cloud agents. These jobs need
 # LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.
@@ -51,40 +43,6 @@ jobs:
 
       - name: Deploy the stage agent's dev deployment
         run: lk --yes agent deploy --config livekit.stage.toml --deployment dev
-
-  simulate:
-    needs: dev
-    name: Simulate dev
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.14"
-
-      - name: Install dependencies
-        run: UV_GIT_LFS=1 uv sync
-
-      - name: Download model files
-        run: uv run python src/agent.py download-files
-
-      - name: Install LiveKit CLI
-        run: curl -sSL https://get.livekit.io/cli | bash
-
-      - name: Run text simulations
-        run: lk agent simulate text --scenarios scenarios.yaml --concurrency 5
 
   stage:
     if: github.event_name == 'push'

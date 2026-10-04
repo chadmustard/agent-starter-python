@@ -1,8 +1,8 @@
 # Simulation scenarios for the golf scorecard caddie. Each one is a
 # conversation a simulated golfer has with your agent, judged against
 # agent_expectations. Run them with `lk agent simulate text --scenarios
-# scenarios.yaml`. The Deploy workflow runs them on pull requests after
-# the dev deployment finishes.
+# scenarios.yaml`. They don't run in CI; run them locally before merging
+# a behavior change.
 #
 # Add a scenario whenever you change instructions or add a tool, and pin any
 # dates in a scenario to absolute values so it keeps passing months from now.
