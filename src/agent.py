@@ -1,4 +1,5 @@
 import logging
+import os
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -16,7 +17,7 @@ from livekit.agents import (
 from livekit.plugins import ai_coustics
 
 from caddie import CaddieData, RoundSetupAgent
-from golf_api import OpenGolfAPI
+from golf_api import FailingGolfAPI, OpenGolfAPI
 from publisher import ScorecardPublisher
 
 logger = logging.getLogger("agent")
@@ -26,7 +27,7 @@ load_dotenv(".env.local")
 server = AgentServer()
 
 
-@server.rtc_session(agent_name="my-agent")
+@server.rtc_session(agent_name=os.getenv("LIVEKIT_AGENT_NAME", "my-agent"))
 async def my_agent(ctx: JobContext):
     # Logging setup
     # Add any other context you want in all log entries here
@@ -35,7 +36,14 @@ async def my_agent(ctx: JobContext):
     }
 
     publisher = ScorecardPublisher(ctx.room)
-    golf_api = OpenGolfAPI()
+
+    # Under simulation, a scenario can ask for a deterministic OpenGolfAPI
+    # failure instead of hitting the real backend. See scenarios.yaml.
+    sim = ctx.simulation_context()
+    if sim and sim.userdata().get("golf_api_unavailable"):
+        golf_api = FailingGolfAPI()
+    else:
+        golf_api = OpenGolfAPI()
     ctx.add_shutdown_callback(golf_api.aclose)
 
     # Set up a voice AI pipeline using AssemblyAI, Fish Audio, and the LiveKit turn detector

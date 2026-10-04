@@ -1,0 +1,83 @@
+# Pull requests deploy the stage agent's dev deployment. Merges to main
+# deploy the stage agent's production deployment, then wait for approval
+# before deploying the original agent in livekit.toml.
+#
+# The production job uses the GitHub environment named "production".
+# That job waits for a person only after a required reviewer is set:
+# https://github.com/chadmustard/agent-starter-python/settings/environments
+# Until then, GitHub creates the environment and the job continues.
+#
+# Runtime secrets stay on the Cloud agents. These jobs need
+# LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dev:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    name: Deploy dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install LiveKit CLI
+        run: curl -sSL https://get.livekit.io/cli | bash
+
+      - name: Deploy the stage agent's dev deployment
+        run: lk --yes agent deploy --config livekit.stage.toml --deployment dev
+
+  stage:
+    if: github.event_name == 'push'
+    name: Deploy stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install LiveKit CLI
+        run: curl -sSL https://get.livekit.io/cli | bash
+
+      - name: Deploy the stage agent's production deployment
+        run: lk --yes agent deploy --config livekit.stage.toml
+
+  production:
+    needs: stage
+    if: github.event_name == 'push'
+    name: Deploy production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install LiveKit CLI
+        run: curl -sSL https://get.livekit.io/cli | bash
+
+      - name: Deploy the production agent
+        run: lk --yes agent deploy
